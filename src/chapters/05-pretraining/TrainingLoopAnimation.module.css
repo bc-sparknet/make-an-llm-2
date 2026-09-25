@@ -1,0 +1,173 @@
+.loop {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.loop li {
+  position: relative;
+  margin: 0 !important;
+  padding: var(--space-2) 2px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  font-size: 0.74rem;
+  font-weight: 600;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+/* little arrows between phases, and a "loop back" arrow after the last */
+.loop li::after {
+  content: '→';
+  position: absolute;
+  right: -11px;
+  width: 10px;
+  text-align: center;
+  top: 50%;
+  translate: 0 -50%;
+  z-index: 1;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.loop li:last-child::after {
+  content: '↺';
+  width: auto;
+  right: 3px;
+  top: 2px;
+  translate: 0 0;
+  font-size: 0.7rem;
+}
+
+.loop li[data-active='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  transform: scale(1.05);
+}
+
+.hint {
+  min-height: 2.6em;
+  margin: var(--space-2) 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.tick {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-sans);
+}
+
+.train,
+.val {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.train {
+  stroke: var(--blue);
+}
+
+.val {
+  stroke: var(--accent);
+}
+
+.trainDot {
+  fill: var(--blue);
+}
+
+.valDot {
+  fill: var(--accent);
+}
+
+.overfit {
+  fill: var(--danger-soft);
+  opacity: 0.7;
+}
+
+.overfitLabel {
+  fill: var(--danger);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: center;
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+}
+
+.swatchTrain,
+.swatchVal {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+
+.swatchTrain {
+  background: var(--blue);
+}
+
+.swatchVal {
+  background: var(--accent);
+}
+
+.sample {
+  min-height: 7.5em;
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--blue);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.sample[data-memorised='true'] {
+  border-left-color: var(--danger);
+}
+
+.sampleLabel {
+  display: block;
+  line-height: 1.35;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.sample p {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  animation: fade-in 0.35s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}

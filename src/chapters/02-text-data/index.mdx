@@ -124,9 +124,15 @@ class NextTokenDataset(Dataset):
         return self.inputs[i], self.targets[i]
 
 
-dataset = NextTokenDataset(raw_text, tiktoken.get_encoding("gpt2"),
-                           context_length=256, stride=256)
-loader = DataLoader(dataset, batch_size=8, shuffle=True, drop_last=True)
+def create_dataloader(text, batch_size=8, max_length=256, stride=256,
+                      shuffle=True, drop_last=True):
+    dataset = NextTokenDataset(text, tiktoken.get_encoding("gpt2"),
+                               context_length=max_length, stride=stride)
+    return DataLoader(dataset, batch_size=batch_size,
+                      shuffle=shuffle, drop_last=drop_last)
+
+
+loader = create_dataloader(raw_text, batch_size=8, max_length=256, stride=256)
 
 inputs, targets = next(iter(loader))
 print(inputs.shape)   # torch.Size([8, 256]): 8 windows of 256 token IDs

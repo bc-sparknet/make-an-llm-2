@@ -1,1 +1,445 @@
-Coming soon.
+import { Callout, Quiz } from '../../components';
+import { CrossEntropyStepper } from './CrossEntropyStepper';
+import { LossExplorer } from './LossExplorer';
+import { TrainingLoopAnimation } from './TrainingLoopAnimation';
+import { SamplingPlayground } from './SamplingPlayground';
+import { quiz } from './quiz';
+
+At the end of Chapter 4 you had a complete GPT model. It could generate text, but only gibberish: its 124 million weights were random numbers.
+
+This chapter fixes that. You'll give the model a way to measure how wrong it is, then repeatedly nudge its weights to be a little less wrong. That process, run over unlabeled text, is **pretraining**.
+
+<Callout type="key">
+Pretraining is next-token prediction plus a score. The score (the **loss**) tells us how surprised the model was by the real next token. Training means making that number go down.
+</Callout>
+
+## Evaluating generative models
+
+Before training anything, we need a quick way to see what the model produces. Generating text involves converting back and forth between strings and token IDs, so two small helpers save a lot of typing:
+
+```python
+import tiktoken
+import torch
+
+tokenizer = tiktoken.get_encoding("gpt2")
+
+def text_to_token_ids(text, tokenizer):
+    ids = tokenizer.encode(text, allowed_special={"<|endoftext|>"})
+    return torch.tensor(ids).unsqueeze(0)     # add a batch dimension
+
+def token_ids_to_text(token_ids, tokenizer):
+    ids = token_ids.squeeze(0).tolist()       # drop the batch dimension
+    return tokenizer.decode(ids)
+```
+
+With these, trying the untrained model takes three lines. We reuse `generate_text_simple` from Chapter 4, which greedily picks the most likely token at each step:
+
+```python
+torch.manual_seed(123)
+model = GPTModel(GPT_CONFIG_124M)
+model.eval()
+
+out = generate_text_simple(
+    model=model,
+    idx=text_to_token_ids("The keeper climbed", tokenizer),
+    max_new_tokens=8,
+    context_size=GPT_CONFIG_124M["context_length"],
+)
+print(token_ids_to_text(out, tokenizer))
+# The keeper climbed Mob sparing Tactical Kn...  (random words)
+```
+
+<Callout type="note">
+We shrink `context_length` from 1,024 to 256 tokens for this chapter. Shorter sequences make training fast enough for a laptop, and the model architecture doesn't otherwise change.
+</Callout>
+
+### Inputs and targets
+
+To grade the model, we need to know what it *should* have said. In next-token prediction, the answer key is hiding in the text itself: the target for each position is simply the token that comes next.
+
+So the targets are the inputs, **shifted one position to the left**:
+
+```python
+# (token IDs here are illustrative)
+inputs  = torch.tensor([[464, 12986, 19952],     # "The keeper climbed"
+                        [40,   1392,   340]])    # "I saw it"
+
+targets = torch.tensor([[12986, 19952, 262],     # "keeper climbed the"
+                        [1392,   340,  13]])     # "saw it ."
+```
+
+A single row of three input tokens gives us three training examples at once: predict "keeper" from "The", "climbed" from "The keeper", and "the" from "The keeper climbed". The causal mask from Chapter 3 guarantees no position can peek at its own answer.
+
+## Measuring the loss
+
+The model outputs a vector of **logits** for every position: one raw score per vocabulary entry, 50,257 of them. Here's how we turn those into a single number that says how well the model did.
+
+1. **Softmax** turns each position's logits into probabilities.
+2. **Pick out** the probability the model gave to the correct target token.
+3. **Take the log** of each of those probabilities.
+4. **Average** across all positions (and all sequences in the batch).
+5. **Negate**, so that lower is better.
+
+The result is called the **cross-entropy loss**. Step through it on a tiny vocabulary:
+
+<CrossEntropyStepper />
+
+Spelled out in PyTorch, those five steps look like this:
+
+```python
+with torch.no_grad():
+    logits = model(inputs)                    # (batch, seq_len, vocab)
+
+probas = torch.softmax(logits, dim=-1)        # 1. probabilities
+
+# 2. probability of the correct token at every position
+target_probas = probas.gather(dim=-1, index=targets.unsqueeze(-1)).squeeze(-1)
+
+log_probas = torch.log(target_probas)         # 3. log
+avg_log_proba = log_probas.mean()             # 4. average
+loss = -avg_log_proba                         # 5. negate
+print(loss)   # ≈ 10.8 for an untrained model
+```
+
+Why 10.8? A model that knows nothing spreads its probability roughly evenly over all 50,257 tokens. Then every target gets about 1/50,257, and −ln(1/50,257) ≈ 10.8. That's our starting point; training should drive it down.
+
+### Why the log?
+
+Using −log(p) as the penalty has a useful shape. When the model gives the right token a high probability, the penalty is near zero. As that probability shrinks, the penalty grows faster and faster. Try it:
+
+<LossExplorer />
+
+<Callout type="tip">
+Logs also turn products into sums. The probability of a whole sentence is the product of each token's probability, which quickly becomes too tiny for a computer to store. Summing log-probabilities avoids that problem.
+</Callout>
+
+### The built-in version
+
+PyTorch's `cross_entropy` does all five steps in one call, and it does them in a more numerically stable way. It takes raw logits (not probabilities) and expects 2-D logits and 1-D targets, so we flatten the batch and sequence dimensions together first:
+
+```python
+import torch.nn.functional as F
+
+logits_flat  = logits.flatten(0, 1)    # (batch * seq_len, vocab)
+targets_flat = targets.flatten()       # (batch * seq_len,)
+
+loss = F.cross_entropy(logits_flat, targets_flat)
+print(loss)   # same value as the manual version
+```
+
+### Perplexity
+
+Loss values like 10.8 or 3.2 are hard to picture. **Perplexity** is a friendlier way to report the same thing:
+
+```python
+perplexity = torch.exp(loss)   # ≈ 48,700 for the untrained model
+```
+
+Perplexity is the loss "un-logged". You can read it as the **effective number of tokens the model is choosing between** at each step. An untrained model's perplexity is close to the full vocabulary size: it's no better than picking any token at random. A perplexity of 20 means the model has narrowed its guesses down to about 20 equally likely candidates.
+
+## Training and validation loss
+
+Now let's compute the loss on real text. We use a single short story of about 20,000 characters, roughly 5,000 tokens. That's absurdly small for an LLM, but it trains in minutes and makes every stage of the process visible.
+
+```python
+with open("short_story.txt", "r", encoding="utf-8") as f:
+    text_data = f.read()
+
+print(len(text_data), len(tokenizer.encode(text_data)))
+# roughly 20,000 characters, 5,000 tokens
+```
+
+We hold back 10% of the text as a **validation set**. The model never trains on it, so its loss there tells us whether the model is learning general patterns or just memorising:
+
+```python
+split = int(0.9 * len(text_data))
+train_text, val_text = text_data[:split], text_data[split:]
+
+train_loader = create_dataloader(
+    train_text, batch_size=2, max_length=256, stride=256,
+    shuffle=True, drop_last=True,
+)
+val_loader = create_dataloader(
+    val_text, batch_size=2, max_length=256, stride=256,
+    shuffle=False, drop_last=False,
+)
+```
+
+`create_dataloader` is the sliding-window loader from Chapter 2. It already returns `(inputs, targets)` pairs shifted by one token. Setting `stride` equal to `max_length` means the windows don't overlap.
+
+Two small functions compute the loss for a single batch, and the average over a whole loader:
+
+```python
+def calc_loss_batch(input_batch, target_batch, model, device):
+    input_batch = input_batch.to(device)
+    target_batch = target_batch.to(device)
+    logits = model(input_batch)
+    return F.cross_entropy(logits.flatten(0, 1), target_batch.flatten())
+
+
+def calc_loss_loader(data_loader, model, device, num_batches=None):
+    if len(data_loader) == 0:
+        return float("nan")
+    n = len(data_loader) if num_batches is None else min(num_batches, len(data_loader))
+    total = 0.0
+    for i, (x, y) in enumerate(data_loader):
+        if i >= n:
+            break
+        total += calc_loss_batch(x, y, model, device).item()
+    return total / n
+```
+
+The optional `num_batches` lets us estimate the loss from a few batches instead of the whole dataset, which is handy for quick checks during training.
+
+```python
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+
+with torch.no_grad():
+    print(calc_loss_loader(train_loader, model, device))   # ≈ 10.99
+    print(calc_loss_loader(val_loader, model, device))     # ≈ 10.98
+```
+
+Both are close to the "knows nothing" value of 10.8, as expected.
+
+## The training loop
+
+Training repeats the same four moves over and over, once per batch:
+
+1. **Forward**: run the batch through the model to get logits.
+2. **Loss**: compare logits to targets with cross-entropy.
+3. **Backward**: `loss.backward()` computes, for every weight, which direction would reduce the loss.
+4. **Update**: the optimizer moves every weight a small step in that direction.
+
+One pass over the whole training set is an **epoch**. Here's the loop in full:
+
+```python
+def train_model_simple(model, train_loader, val_loader, optimizer, device,
+                       num_epochs, eval_freq, eval_iter, start_context, tokenizer):
+    train_losses, val_losses, tokens_seen = [], [], []
+    seen, step = 0, -1
+
+    for epoch in range(num_epochs):
+        model.train()                              # enable dropout
+        for input_batch, target_batch in train_loader:
+            optimizer.zero_grad()                  # clear old gradients
+            loss = calc_loss_batch(input_batch, target_batch, model, device)
+            loss.backward()                        # compute new gradients
+            optimizer.step()                       # update the weights
+            seen += input_batch.numel()
+            step += 1
+
+            if step % eval_freq == 0:
+                tr, va = evaluate_model(model, train_loader, val_loader, device, eval_iter)
+                train_losses.append(tr)
+                val_losses.append(va)
+                tokens_seen.append(seen)
+                print(f"epoch {epoch+1} step {step:05d}: train {tr:.3f}, val {va:.3f}")
+
+        # after every epoch, look at what the model writes
+        generate_and_print_sample(model, tokenizer, device, start_context)
+
+    return train_losses, val_losses, tokens_seen
+```
+
+<Callout type="warning">
+Forgetting `optimizer.zero_grad()` is a classic bug. PyTorch *adds* new gradients to old ones by default, so without it each update would include every previous batch's gradients too.
+</Callout>
+
+The two helpers switch the model into evaluation mode (no dropout, no gradient tracking), measure or generate, then switch back:
+
+```python
+def evaluate_model(model, train_loader, val_loader, device, eval_iter):
+    model.eval()
+    with torch.no_grad():
+        train_loss = calc_loss_loader(train_loader, model, device, num_batches=eval_iter)
+        val_loss = calc_loss_loader(val_loader, model, device, num_batches=eval_iter)
+    model.train()
+    return train_loss, val_loss
+
+
+def generate_and_print_sample(model, tokenizer, device, start_context):
+    model.eval()
+    context_size = model.pos_emb.weight.shape[0]
+    idx = text_to_token_ids(start_context, tokenizer).to(device)
+    with torch.no_grad():
+        out = generate_text_simple(model, idx, max_new_tokens=40, context_size=context_size)
+    print(token_ids_to_text(out, tokenizer).replace("\n", " "))
+    model.train()
+```
+
+Finally, we pick an optimizer and start training. **AdamW** is the standard choice for transformers: it adapts the step size for each weight individually, and its weight decay gently pulls weights toward zero to discourage overfitting.
+
+```python
+torch.manual_seed(123)
+model = GPTModel(GPT_CONFIG_124M).to(device)
+optimizer = torch.optim.AdamW(model.parameters(), lr=4e-4, weight_decay=0.1)
+
+train_losses, val_losses, tokens_seen = train_model_simple(
+    model, train_loader, val_loader, optimizer, device,
+    num_epochs=10, eval_freq=5, eval_iter=5,
+    start_context="The keeper climbed", tokenizer=tokenizer,
+)
+```
+
+Press play to watch a simulated run of this loop:
+
+<TrainingLoopAnimation />
+
+### What just happened?
+
+Early on, both losses fall quickly. The model first learns the most common tokens (commas, "the", "and"), then word order, then something resembling grammar.
+
+But after a few epochs, the two curves split. Training loss keeps sinking toward zero while validation loss stalls and starts to rise. The samples tell the same story: the model stops *writing* and starts *reciting* passages from the training text word for word.
+
+This is **overfitting**. With only 5,000 tokens and 124 million weights, the model has more than enough capacity to memorise everything it sees. Real pretraining avoids this by using vastly more data (billions of tokens) and seeing most of it only once.
+
+<Callout type="note">
+Pretraining a GPT-2-sized model properly costs thousands of GPU-hours. That's why, at the end of this chapter, we'll borrow weights that OpenAI already trained.
+</Callout>
+
+## Decoding strategies
+
+So far we've generated text **greedily**: always picking the single most likely token. Greedy decoding is predictable, but it's also repetitive, and it produces the same output every time for the same prompt.
+
+Instead we can **sample**: treat the softmax output as a probability distribution and draw a token from it at random. Likely tokens still win most of the time, but less likely ones get an occasional chance.
+
+```python
+probas = torch.softmax(next_token_logits, dim=-1)
+next_token = torch.multinomial(probas, num_samples=1)
+```
+
+Two knobs control how adventurous sampling is.
+
+### Temperature
+
+**Temperature** divides the logits by a number `T` before the softmax:
+
+```python
+probas = torch.softmax(next_token_logits / temperature, dim=-1)
+```
+
+- **T below 1** stretches the differences between logits, so the top tokens grab even more probability. As T approaches 0, sampling turns into greedy decoding.
+- **T = 1** leaves the model's distribution unchanged.
+- **T above 1** squashes the differences, flattening the distribution. Rare tokens become more likely, and output becomes more creative, then more chaotic.
+
+### Top-k sampling
+
+Even with a moderate temperature, sampling from all 50,257 tokens means occasionally picking something absurd from the long tail. **Top-k sampling** keeps only the `k` most likely tokens and sets everyone else's logit to minus infinity, which softmax turns into a probability of exactly zero:
+
+```python
+top_logits, _ = torch.topk(next_token_logits, k=3)
+cutoff = top_logits[:, -1:]                            # the k-th largest logit
+next_token_logits = torch.where(
+    next_token_logits < cutoff,
+    torch.tensor(float("-inf")).to(next_token_logits.device),
+    next_token_logits,
+)
+```
+
+Play with both knobs. Try a high temperature with top-k off and see how often "banana" shows up, then turn top-k down to 3:
+
+<SamplingPlayground />
+
+### Putting it together
+
+Here's an upgraded `generate` function that supports both techniques. With `temperature=0.0` and no `top_k`, it falls back to greedy decoding:
+
+```python
+def generate(model, idx, max_new_tokens, context_size,
+             temperature=0.0, top_k=None, eos_id=None):
+    for _ in range(max_new_tokens):
+        idx_cond = idx[:, -context_size:]          # crop to the context window
+        with torch.no_grad():
+            logits = model(idx_cond)[:, -1, :]      # logits for the last position
+
+        if top_k is not None:
+            top_logits, _ = torch.topk(logits, top_k)
+            cutoff = top_logits[:, -1:]
+            logits = torch.where(logits < cutoff,
+                                 torch.full_like(logits, float("-inf")), logits)
+
+        if temperature > 0.0:
+            probas = torch.softmax(logits / temperature, dim=-1)
+            idx_next = torch.multinomial(probas, num_samples=1)
+        else:
+            idx_next = torch.argmax(logits, dim=-1, keepdim=True)
+
+        if eos_id is not None and (idx_next == eos_id).all():
+            break                                   # stop at end-of-text
+        idx = torch.cat((idx, idx_next), dim=1)
+    return idx
+```
+
+```python
+torch.manual_seed(123)
+out = generate(
+    model=model,
+    idx=text_to_token_ids("The keeper climbed", tokenizer).to(device),
+    max_new_tokens=20,
+    context_size=GPT_CONFIG_124M["context_length"],
+    top_k=25,
+    temperature=1.4,
+)
+print(token_ids_to_text(out, tokenizer))
+```
+
+<Callout type="tip">
+Sampling doesn't fix memorisation. It just picks different paths through what the model has learned. On our tiny dataset it mostly helps the model wander off the memorised script a little.
+</Callout>
+
+## Saving and loading weights
+
+Training takes time, so you'll want to save your progress. A PyTorch model's learned weights live in its `state_dict`, a dictionary mapping each layer name to its tensor:
+
+```python
+torch.save(model.state_dict(), "model.pth")
+
+model = GPTModel(GPT_CONFIG_124M)
+model.load_state_dict(torch.load("model.pth", map_location=device))
+model.eval()      # switch off dropout for inference
+```
+
+If you plan to **continue training** later, save the optimizer's state too. AdamW keeps two running averages for every single weight; without them, resumed training would restart those statistics from zero and wobble for a while.
+
+```python
+torch.save({
+    "model_state_dict": model.state_dict(),
+    "optimizer_state_dict": optimizer.state_dict(),
+}, "model_and_optimizer.pth")
+
+checkpoint = torch.load("model_and_optimizer.pth", map_location=device)
+model.load_state_dict(checkpoint["model_state_dict"])
+optimizer = torch.optim.AdamW(model.parameters(), lr=4e-4, weight_decay=0.1)
+optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+model.train()
+```
+
+### Loading pretrained GPT-2 weights
+
+Training on one short story taught us how pretraining works, but it can't produce a genuinely capable model. Fortunately, OpenAI published the trained weights for GPT-2, and because our `GPTModel` follows the same architecture, we can load them directly.
+
+The process has three parts:
+
+1. **Download** the released weights (available in sizes from 124M to 1.5B parameters).
+2. **Match the configuration**: GPT-2 was trained with a 1,024-token context window and uses bias terms in its query, key and value projections.
+3. **Copy each tensor** into the corresponding layer of our model, checking that shapes line up.
+
+```python
+NEW_CONFIG = GPT_CONFIG_124M.copy()
+NEW_CONFIG.update({"context_length": 1024, "qkv_bias": True})
+
+gpt = GPTModel(NEW_CONFIG)
+load_weights_into_gpt(gpt, params)   # copies OpenAI's tensors layer by layer
+gpt.to(device).eval()
+```
+
+The main wrinkle is bookkeeping: OpenAI's checkpoint names layers differently and stores the query, key and value weights as one combined matrix, so `load_weights_into_gpt` splits and renames tensors as it goes. The key line inside it is a shape check that fails loudly on any mismatch, rather than silently loading garbage.
+
+After loading, the same `generate` call produces coherent English, because now the weights encode patterns learned from about 40 GB of web text. This pretrained model is the starting point for the next two chapters, where we fine-tune it to classify spam and to follow instructions.
+
+<Callout type="key">
+Everything in this chapter works at any scale. The loss, the loop, the optimizer and the decoding tricks are the same ones used for today's largest models. What changes is the amount of data and compute.
+</Callout>
+
+<Quiz questions={quiz} />

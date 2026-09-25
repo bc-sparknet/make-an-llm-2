@@ -1,0 +1,87 @@
+.context {
+  margin: 0 0 var(--space-2);
+  font-size: 0.95rem;
+}
+
+.input {
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.target {
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.calc,
+.formula {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  min-height: 12rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.note {
+  margin: var(--space-3) 0 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.tally {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-1);
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) 0;
+}
+
+.tally li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 !important;
+  padding: var(--space-1) 0;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.tally li[data-state='active'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tally li[data-state='done'] {
+  border-color: var(--accent);
+}
+
+.tallyLoss {
+  border-style: dashed !important;
+}
+
+.tallyToken {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.tallyValue {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
