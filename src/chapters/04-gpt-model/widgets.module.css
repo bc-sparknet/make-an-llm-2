@@ -1,0 +1,440 @@
+/* Shared styles for the Chapter 4 widgets. Colours come only from tokens.css. */
+
+.note {
+  margin: var(--space-2) 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.detail {
+  min-height: 4.8em;
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  animation: fade-in 0.35s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.sliderGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+}
+
+/* ---- LayerNormDemo ---- */
+.twoPanels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.panel {
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.panelTitle {
+  margin-bottom: var(--space-1);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.divBars {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.divCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.divTrack {
+  position: relative;
+  width: 100%;
+  height: 110px;
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+/* zero line */
+.divTrack::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--border);
+}
+
+.divFill {
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  border-radius: 3px;
+  background: var(--blue);
+  transition: height 0.25s ease, top 0.25s ease;
+}
+
+.divBars[data-tone='accent'] .divFill {
+  background: var(--accent);
+}
+
+.divValue {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.readouts {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  margin-top: var(--space-1);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.readouts b {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+/* ---- GeluPlot ---- */
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--blue);
+  background: var(--surface-2);
+  font-size: 0.82rem;
+}
+
+.stat[data-tone='accent'] {
+  border-left-color: var(--accent);
+}
+
+.stat b {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+}
+
+/* ---- ShortcutDemo ---- */
+.gradList {
+  display: grid;
+  gap: 8px;
+  margin-top: var(--space-3);
+}
+
+.gradRow {
+  display: grid;
+  grid-template-columns: 6.2rem 1fr 4.2rem;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+}
+
+.gradLabel {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gradTrack {
+  height: 20px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.gradFill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--danger);
+  transition: width 0.45s ease, background 0.3s ease;
+}
+
+.gradFill[data-mode='on'] {
+  background: var(--success);
+}
+
+.gradValue {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* ---- TransformerBlockDiagram ---- */
+.blockDiagram,
+.blockDiagram ol {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.blockDiagram li {
+  margin: 0;
+}
+
+.blockItem {
+  position: relative;
+}
+
+/* down-arrow connector above boxes */
+.blockItem:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  width: 2px;
+  height: 10px;
+  background: var(--border);
+}
+
+.blockGroup {
+  position: relative;
+  padding-left: 36px;
+}
+
+/* the shortcut rail: runs down the left side from above the group into its add node */
+.blockGroup::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: -8px;
+  bottom: 22px;
+  width: 20px;
+  border: 2px dashed var(--border);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  transition: border-color 0.3s ease;
+}
+
+.blockGroup[data-state='active']::before {
+  border-color: var(--purple);
+}
+
+.blockGroup[data-state='done']::before {
+  border-color: var(--accent);
+}
+
+.railLabel {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  white-space: nowrap;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: 0 3px;
+}
+
+.blockNode {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: pre-wrap;
+  cursor: pointer;
+  transition: border-color 0.3s ease, background 0.3s ease, transform 0.3s ease;
+}
+
+.blockNode[data-kind='io'] {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  background: var(--surface-2);
+}
+
+.blockNode[data-kind='attn'] {
+  border-left: 6px solid var(--blue);
+}
+
+.blockNode[data-kind='ffn'] {
+  border-left: 6px solid var(--green);
+}
+
+.blockNode[data-kind='norm'] {
+  border-left: 6px solid var(--purple);
+}
+
+.blockNode[data-kind='add'] {
+  border-radius: 999px;
+}
+
+.blockNode[data-kind='drop'] {
+  border-style: dashed;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.blockNode[data-state='todo'] {
+  opacity: 0.55;
+}
+
+.blockNode[data-state='active'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+/* ---- ParameterCalculator ---- */
+.calcTotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.calcTotal > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.calcBig {
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+.calcSub {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.calcMem {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.calcMem b {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+}
+
+.calcMem span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.breakdown {
+  display: grid;
+  gap: 10px;
+  margin-bottom: var(--space-3);
+}
+
+.breakRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 3px;
+  font-size: 0.85rem;
+}
+
+.breakLabel {
+  font-weight: 600;
+}
+
+.breakValue {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.breakTrack {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.breakFill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--blue);
+  transition: width 0.3s ease;
+}
+
+/* ---- GenerationStepper ---- */
+.genPhase {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.genIter {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.78rem;
+}
+
+.genBody {
+  min-height: 15rem;
+  margin: var(--space-3) 0;
+}
+
+.genBody > p:first-child {
+  margin-top: 0;
+  margin-bottom: var(--space-3);
+}
+
+.calcHint {
+  margin: var(--space-2) 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
