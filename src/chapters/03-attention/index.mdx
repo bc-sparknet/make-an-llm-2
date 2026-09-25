@@ -1,1 +1,352 @@
-Coming soon.
+import { Callout, Quiz } from '../../components';
+import { AttentionExplorer } from './AttentionExplorer';
+import { ScaledAttentionStepper } from './ScaledAttentionStepper';
+import { CausalMaskDemo } from './CausalMaskDemo';
+import { MultiHeadDemo } from './MultiHeadDemo';
+import { quiz } from './quiz';
+
+In Chapter 2 you turned text into a sequence of embedding vectors, one per token. Each vector describes its token in isolation: the vector for "bank" is the same whether we're talking about rivers or money.
+
+This chapter builds the component that fixes that: **attention**. It lets every token look at the others and blend in what's relevant, so its vector ends up describing the token *in context*.
+
+We'll build it in four steps, each adding one idea:
+
+1. A bare-bones self-attention with no trainable weights.
+2. Self-attention with trainable queries, keys and values.
+3. Causal attention, which hides future tokens.
+4. Multi-head attention, which runs several attentions in parallel.
+
+## Why attention?
+
+Recall the recurrent networks from Chapter 1. They read a sentence one token at a time and carry a single fixed-size memory forward. To translate or continue a long passage, everything about the start of the text has to survive being squeezed into that one vector, step after step.
+
+That's a bottleneck. Details fade, and the network has no way to go back and re-read a word it passed twenty steps ago.
+
+Attention removes the bottleneck. When the model processes a token, it can look directly at **every** other token in the input and decide how much each one matters right now. Nothing has to be remembered, because nothing is thrown away.
+
+<Callout type="key">
+**Self-attention** means the sequence attends to itself: each token's new representation is a weighted mix of all the tokens in the same input.
+</Callout>
+
+## A simple self-attention, no weights
+
+Let's start with the smallest version that captures the idea. Take a six-token sentence with made-up 3-dimensional embeddings:
+
+```python
+import torch
+
+inputs = torch.tensor([
+    [0.2, 0.7, 0.1],  # My
+    [0.9, 0.3, 0.2],  # cat
+    [0.7, 0.2, 0.5],  # naps
+    [0.1, 0.6, 0.3],  # in
+    [0.3, 0.1, 0.9],  # warm
+    [0.4, 0.2, 0.8],  # sun
+])
+```
+
+Real embeddings have hundreds of dimensions, but three is enough to see what's going on. Our goal: compute a **context vector** for each token, a new vector that mixes in information from the rest of the sentence.
+
+### Step 1: attention scores
+
+Pick one token to focus on, say "naps". We call it the **query**. To measure how related it is to each token, take the **dot product** of their embeddings: multiply matching entries and add them up.
+
+```python
+query = inputs[2]                 # "naps"
+scores = inputs @ query           # one dot product per token
+print(scores)
+# tensor([0.3300, 0.7900, 0.7800, 0.3400, 0.6800, 0.7200])
+```
+
+Vectors that point the same way give a big dot product. "cat" scores highest here, just above "naps" itself, because their embeddings point in similar directions.
+
+### Step 2: normalise with softmax
+
+Raw scores can be any size. We want **weights**: positive numbers that add up to 1, so we can read them as "what fraction of attention goes where". Softmax does exactly that:
+
+```python
+weights = torch.softmax(scores, dim=0)
+print(weights.sum())   # tensor(1.)
+```
+
+Softmax exponentiates each score and divides by the total. Bigger scores get bigger shares, but every token keeps a slice.
+
+### Step 3: the context vector
+
+Finally, multiply each input vector by its weight and add them all up:
+
+```python
+context = weights @ inputs        # weighted sum of all embeddings
+```
+
+That's it: the context vector for "naps" is a blend of the whole sentence, tilted towards the tokens most similar to it. Try it for every word:
+
+<AttentionExplorer />
+
+### All tokens at once
+
+Doing this one query at a time is wasteful. With matrix multiplication we can compute every score, every weight and every context vector in three lines:
+
+```python
+scores = inputs @ inputs.T                 # (6, 6): row i = query i vs all tokens
+weights = torch.softmax(scores, dim=-1)    # softmax along each row
+contexts = weights @ inputs                # (6, 3): one context vector per token
+```
+
+`dim=-1` normalises along the last dimension, so each **row** sums to 1. Row *i* holds the attention weights for query *i*.
+
+<Callout type="note">
+This version has no parameters to train. The weights depend only on the embeddings, so the model has no way to learn *which* relationships matter. That's what we add next.
+</Callout>
+
+## Self-attention with trainable weights
+
+In the simple version, each embedding played three roles at once: it was the thing asking (the query), the thing being compared against, and the thing being mixed into the output. Real self-attention gives each role its own learned projection.
+
+Three weight matrices turn each input `x` into three vectors:
+
+- **Query** `q = x · W_q`: what this token is looking for.
+- **Key** `k = x · W_k`: what this token offers to be matched against.
+- **Value** `v = x · W_v`: the information this token passes on if it's attended to.
+
+A handy analogy is a database lookup: your query is compared to every key, and the matching entries' values are returned. Attention does a soft version where every value is returned, weighted by how well its key matches.
+
+Scores now compare queries against keys, and the output mixes values:
+
+```python
+torch.manual_seed(0)
+d_in, d_out = 3, 2
+
+W_q = torch.rand(d_in, d_out)
+W_k = torch.rand(d_in, d_out)
+W_v = torch.rand(d_in, d_out)
+
+Q = inputs @ W_q     # (6, 2)
+K = inputs @ W_k     # (6, 2)
+V = inputs @ W_v     # (6, 2)
+
+scores = Q @ K.T     # (6, 6)
+```
+
+Notice that `d_out` can differ from `d_in`. In GPT models they're usually equal, but a small `d_out` keeps our example easy to follow.
+
+### Why divide by √d_k?
+
+Before the softmax, we divide the scores by the square root of the key dimension, `d_k`. This is the "scaled" in **scaled dot-product attention**.
+
+The reason: a dot product sums `d_k` terms, so its typical size grows with the dimension. With `d_k = 64`, scores can easily be in the tens. Softmax of large numbers is nearly one-hot, putting almost all the weight on a single token, and in that regime its gradients are close to zero. Training stalls.
+
+Dividing by `√d_k` keeps the scores' spread roughly constant regardless of dimension, so softmax stays in its useful, trainable range.
+
+```python
+d_k = K.shape[-1]
+weights = torch.softmax(scores / d_k**0.5, dim=-1)
+contexts = weights @ V        # (6, 2)
+```
+
+Step through the whole computation on four tokens:
+
+<ScaledAttentionStepper />
+
+### A compact PyTorch module
+
+Let's package this up. `nn.Linear` layers (with the bias turned off) do exactly `x @ W`, and they come with a good weight initialisation, which trains better than `torch.rand`.
+
+```python
+import torch.nn as nn
+
+class SelfAttention(nn.Module):
+    def __init__(self, d_in, d_out, qkv_bias=False):
+        super().__init__()
+        self.to_q = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.to_k = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.to_v = nn.Linear(d_in, d_out, bias=qkv_bias)
+
+    def forward(self, x):                  # x: (num_tokens, d_in)
+        q, k, v = self.to_q(x), self.to_k(x), self.to_v(x)
+        scores = q @ k.T
+        weights = torch.softmax(scores / k.shape[-1] ** 0.5, dim=-1)
+        return weights @ v                 # (num_tokens, d_out)
+
+torch.manual_seed(123)
+attn = SelfAttention(d_in=3, d_out=2)
+print(attn(inputs).shape)   # torch.Size([6, 2])
+```
+
+<Callout type="tip">
+`nn.Linear` stores its weight transposed (shape `d_out × d_in`) and computes `x @ W.T`. The result is the same as our `x @ W_q`; only the storage layout differs.
+</Callout>
+
+## Causal attention
+
+A GPT model is trained to predict the next token. If "naps" could attend to "in", "warm" and "sun" while computing its representation, predicting what comes after "naps" would be cheating: the answer is right there.
+
+**Causal attention** (also called masked attention) fixes this. Each token may attend only to itself and the tokens **before** it. In the attention-weight matrix, that means everything above the diagonal must be zero.
+
+### Masking with −∞
+
+The clean way to do this is to edit the scores *before* the softmax. Replace every future position with `-inf`:
+
+```python
+n = scores.shape[0]
+future = torch.triu(torch.ones(n, n, dtype=torch.bool), diagonal=1)
+
+masked = scores.masked_fill(future, float('-inf'))
+weights = torch.softmax(masked / d_k**0.5, dim=-1)
+```
+
+`torch.triu(..., diagonal=1)` marks the cells strictly above the diagonal. Since `exp(-inf) = 0`, softmax gives those cells exactly zero weight, and the remaining weights in each row still add up to 1.
+
+<Callout type="note">
+You could instead run softmax first, zero out the future cells, and then divide each row by its new sum. The result is identical, since the renormalisation cancels out the future terms. But it takes an extra pass over the matrix, so setting `-inf` before the softmax is the standard approach.
+</Callout>
+
+### Dropout on attention weights
+
+Transformers also apply **dropout** to the attention weights during training. A random fraction `p` of the weights is set to zero, so the model can't lean too heavily on any one connection. This reduces overfitting.
+
+PyTorch's dropout is "inverted": the weights that survive are scaled up by `1/(1-p)`. That keeps the expected total the same, so nothing needs to change at inference time, when dropout is switched off.
+
+```python
+dropout = nn.Dropout(p=0.5)
+print(dropout(torch.ones(6)))
+# e.g. tensor([2., 0., 0., 2., 2., 0.])
+```
+
+Try both ideas here:
+
+<CausalMaskDemo />
+
+### A causal attention module
+
+Two practical upgrades. First, real training works on **batches**, so inputs have shape `(batch, num_tokens, d_in)`, and we transpose only the last two dimensions of the keys. Second, we store the mask with `register_buffer`: it moves to the GPU along with the model but isn't a trainable parameter.
+
+```python
+class CausalAttention(nn.Module):
+    def __init__(self, d_in, d_out, context_length, dropout, qkv_bias=False):
+        super().__init__()
+        self.to_q = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.to_k = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.to_v = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.dropout = nn.Dropout(dropout)
+        mask = torch.triu(torch.ones(context_length, context_length, dtype=torch.bool), diagonal=1)
+        self.register_buffer("mask", mask)
+
+    def forward(self, x):                   # x: (batch, n, d_in)
+        n = x.shape[1]
+        q, k, v = self.to_q(x), self.to_k(x), self.to_v(x)
+        scores = q @ k.transpose(1, 2)      # (batch, n, n)
+        scores = scores.masked_fill(self.mask[:n, :n], float('-inf'))
+        weights = torch.softmax(scores / k.shape[-1] ** 0.5, dim=-1)
+        weights = self.dropout(weights)
+        return weights @ v                  # (batch, n, d_out)
+
+batch = torch.stack([inputs, inputs])       # (2, 6, 3)
+ca = CausalAttention(d_in=3, d_out=2, context_length=6, dropout=0.0)
+print(ca(batch).shape)   # torch.Size([2, 6, 2])
+```
+
+The mask is built once for the longest allowed input (`context_length`) and sliced to the actual length `n`, so shorter inputs work too.
+
+## Multi-head attention
+
+One attention head learns one way of relating tokens. But language has many relationships at once: which noun an adjective describes, what a pronoun refers to, which verb goes with which subject.
+
+**Multi-head attention** runs several causal attention heads in parallel, each with its own `W_q`, `W_k` and `W_v`. Each head is free to specialise. Their outputs are then **concatenated** side by side.
+
+### The simple way: stack heads
+
+The most direct implementation is a list of `CausalAttention` modules:
+
+```python
+class MultiHeadWrapper(nn.Module):
+    def __init__(self, d_in, d_out, context_length, dropout, num_heads, qkv_bias=False):
+        super().__init__()
+        self.heads = nn.ModuleList([
+            CausalAttention(d_in, d_out, context_length, dropout, qkv_bias)
+            for _ in range(num_heads)
+        ])
+
+    def forward(self, x):
+        return torch.cat([head(x) for head in self.heads], dim=-1)
+
+mha = MultiHeadWrapper(3, 2, context_length=6, dropout=0.0, num_heads=2)
+print(mha(batch).shape)   # torch.Size([2, 6, 4])  (2 heads × 2 dims)
+```
+
+It works, but the heads run one after another. On a GPU we'd much rather do all of them in a single big matrix multiply.
+
+<MultiHeadDemo />
+
+### The efficient way: split one big projection
+
+Here's the trick. Instead of `h` small query matrices, use **one** `nn.Linear(d_in, d_out)` and then cut its output into `h` slices of size `head_dim = d_out / h`. Mathematically it's the same as separate heads; computationally it's one multiply.
+
+The reshaping goes like this:
+
+1. Project: `(b, n, d_out)`.
+2. Split the last dimension with `view`: `(b, n, h, head_dim)`.
+3. Move heads forward with `transpose(1, 2)`: `(b, h, n, head_dim)`. Now each head is its own "batch" and the usual attention maths applies.
+4. After attention, undo it: transpose back to `(b, n, h, head_dim)` and merge into `(b, n, d_out)`. That merge *is* the concatenation.
+
+Finally, an **output projection** `nn.Linear(d_out, d_out)` mixes the heads' results together. It isn't strictly needed, but every GPT-style model uses one.
+
+```python
+class MultiHeadAttention(nn.Module):
+    def __init__(self, d_in, d_out, context_length, dropout, num_heads, qkv_bias=False):
+        super().__init__()
+        assert d_out % num_heads == 0, "d_out must be divisible by num_heads"
+        self.num_heads = num_heads
+        self.head_dim = d_out // num_heads
+        self.to_q = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.to_k = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.to_v = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.out_proj = nn.Linear(d_out, d_out)
+        self.dropout = nn.Dropout(dropout)
+        mask = torch.triu(torch.ones(context_length, context_length, dtype=torch.bool), diagonal=1)
+        self.register_buffer("mask", mask)
+
+    def split_heads(self, t):
+        b, n, _ = t.shape
+        # (b, n, d_out) -> (b, n, heads, head_dim) -> (b, heads, n, head_dim)
+        return t.view(b, n, self.num_heads, self.head_dim).transpose(1, 2)
+
+    def forward(self, x):
+        b, n, _ = x.shape
+        q = self.split_heads(self.to_q(x))
+        k = self.split_heads(self.to_k(x))
+        v = self.split_heads(self.to_v(x))
+
+        scores = q @ k.transpose(2, 3)                    # (b, heads, n, n)
+        scores = scores.masked_fill(self.mask[:n, :n], float('-inf'))
+        weights = torch.softmax(scores / self.head_dim ** 0.5, dim=-1)
+        weights = self.dropout(weights)
+
+        out = weights @ v                                 # (b, heads, n, head_dim)
+        out = out.transpose(1, 2).contiguous().view(b, n, -1)  # concat heads
+        return self.out_proj(out)                         # (b, n, d_out)
+```
+
+`.contiguous()` is needed because `transpose` only changes how PyTorch walks through memory; `view` requires the data to be laid out in order.
+
+```python
+torch.manual_seed(123)
+mha = MultiHeadAttention(d_in=3, d_out=4, context_length=6, dropout=0.0, num_heads=2)
+print(mha(batch).shape)   # torch.Size([2, 6, 4])
+```
+
+<Callout type="key">
+For scale: GPT-2 small uses 12 heads with `d_in = d_out = 768`, so each head works with 64-dimensional queries, keys and values. The largest GPT-2 has 25 heads and 1,600 dimensions. The code above handles all of these unchanged.
+</Callout>
+
+## Summary
+
+- Attention lets each token build a **context vector** as a weighted sum over all tokens, avoiding the fixed-memory bottleneck of RNNs.
+- Scores come from **dot products**, weights from **softmax**, and outputs from a weighted sum.
+- Trainable **queries, keys and values** let the model learn what to look for; scaling by `√d_k` keeps softmax trainable.
+- A **causal mask** of `-inf` stops tokens peeking at the future; **dropout** on the weights reduces overfitting.
+- **Multi-head attention** runs several heads in parallel via one projection plus `view`/`transpose`, then mixes them with an output projection.
+
+In the next chapter, this `MultiHeadAttention` module becomes the core of a transformer block, and we'll stack those blocks into a complete GPT model.
+
+<Quiz questions={quiz} />

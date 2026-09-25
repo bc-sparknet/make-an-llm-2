@@ -1,0 +1,63 @@
+.query {
+  margin: var(--space-3) 0 0;
+  font-size: 0.92rem;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: 0.92rem;
+}
+
+.num {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75rem;
+}
+
+.note {
+  margin: var(--space-2) 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.sumTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.sumTable th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sumTable td {
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+
+.sumTable tr[data-query='true'] td {
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.sumTable tfoot td {
+  border-top: 2px solid var(--text);
+  font-weight: 700;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}

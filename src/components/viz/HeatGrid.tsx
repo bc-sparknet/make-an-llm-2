@@ -39,7 +39,7 @@ export function HeatGrid({
 
   return (
     <div className="scroll-x">
-      <table className={styles.heatGrid}>
+      <table className={styles.heatGrid} data-col-labels={!!colLabels}>
         {colLabels && (
           <thead>
             <tr>

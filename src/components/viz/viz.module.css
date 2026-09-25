@@ -5,6 +5,11 @@
   font-size: 0.72rem;
 }
 
+.heatGrid[data-col-labels='true'] {
+  /* rotated column labels overhang to the right; leave room so they aren't clipped */
+  padding-right: 2.5rem;
+}
+
 .cell {
   min-width: 42px;
   height: 34px;
