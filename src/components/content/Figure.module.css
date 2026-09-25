@@ -1,0 +1,35 @@
+.figure {
+  margin: var(--space-4) calc(-1 * var(--space-2));
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+@media (min-width: 640px) {
+  .figure {
+    margin-inline: 0;
+    padding: var(--space-4);
+  }
+}
+
+.title {
+  margin-bottom: var(--space-3);
+  font-size: 0.8rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.body {
+  min-width: 0;
+}
+
+.caption {
+  margin-top: var(--space-3);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}

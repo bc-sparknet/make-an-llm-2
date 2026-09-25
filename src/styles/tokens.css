@@ -1,0 +1,107 @@
+/*
+ * Design tokens. Every colour used on the site is defined here, once for light
+ * and once for dark. Components reference the variables, never raw colours.
+ */
+:root {
+  --bg: #faf8f5;
+  --surface: #ffffff;
+  --surface-2: #f1ede7;
+  --border: #e3ddd4;
+  --text: #1f1e1c;
+  --text-muted: #6b665e;
+
+  --accent: #c2552d;
+  --accent-strong: #9e3f1c;
+  --accent-soft: #f7e3d9;
+  --on-accent: #ffffff;
+
+  --blue: #2f6db5;
+  --blue-soft: #dde9f7;
+  --green: #2e8052;
+  --purple: #7a4fb0;
+
+  --success: #2e8052;
+  --success-soft: #dcf0e4;
+  --danger: #b83a3a;
+  --danger-soft: #f7dede;
+
+  /* Heat-map scale endpoints for attention/probability visualisations. */
+  --heat-low: #fbf6f0;
+  --heat-high: #c2552d;
+
+  --code-bg: #f4f1ec;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2.25rem;
+  --space-6: 3.5rem;
+
+  --radius: 10px;
+  --radius-lg: 16px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 2px 8px rgb(0 0 0 / 0.04);
+  --shadow-lg: 0 10px 40px rgb(0 0 0 / 0.18);
+
+  --header-height: 56px;
+  --content-width: 46rem;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #16171b;
+    --surface: #1e2025;
+    --surface-2: #2a2c33;
+    --border: #353841;
+    --text: #ebe8e3;
+    --text-muted: #a19c94;
+    --accent: #e8794f;
+    --accent-strong: #f29a78;
+    --accent-soft: #3d2519;
+    --on-accent: #16171b;
+    --blue: #6ea2e3;
+    --blue-soft: #1d2d42;
+    --green: #5cbf86;
+    --purple: #b08ae0;
+    --success: #5cbf86;
+    --success-soft: #1a3326;
+    --danger: #ea7b7b;
+    --danger-soft: #3d1f1f;
+    --heat-low: #22242a;
+    --heat-high: #e8794f;
+    --code-bg: #1b1d22;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #16171b;
+  --surface: #1e2025;
+  --surface-2: #2a2c33;
+  --border: #353841;
+  --text: #ebe8e3;
+  --text-muted: #a19c94;
+  --accent: #e8794f;
+  --accent-strong: #f29a78;
+  --accent-soft: #3d2519;
+  --on-accent: #16171b;
+  --blue: #6ea2e3;
+  --blue-soft: #1d2d42;
+  --green: #5cbf86;
+  --purple: #b08ae0;
+  --success: #5cbf86;
+  --success-soft: #1a3326;
+  --danger: #ea7b7b;
+  --danger-soft: #3d1f1f;
+  --heat-low: #22242a;
+  --heat-high: #e8794f;
+  --code-bg: #1b1d22;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  color-scheme: dark;
+}

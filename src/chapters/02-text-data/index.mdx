@@ -1,0 +1,181 @@
+import { Callout, Quiz } from '../../components';
+import { TokenizerPlayground } from './TokenizerPlayground';
+import { BpeStepper } from './BpeStepper';
+import { SlidingWindow } from './SlidingWindow';
+import { EmbeddingLookup } from './EmbeddingLookup';
+import { quiz } from './quiz';
+
+Neural networks can't read. They multiply and add numbers. So before we can train anything, we need a reliable way to turn text into numbers, and then into the dense vectors a network learns from.
+
+This chapter builds that input pipeline:
+
+<Callout type="key">
+**text** → **tokens** → **token IDs** → **embedding vectors** (+ position information)
+</Callout>
+
+## Step 1: Splitting text into tokens
+
+A **token** is a unit of text the model treats as a single item: a word, a piece of a word, or a punctuation mark. The simplest tokenizer splits on whitespace and punctuation. A regular expression gets us most of the way:
+
+```python
+import re
+
+text = "Hello, world. Is this-- a test?"
+tokens = re.split(r'([,.:;?_!"()\']|--|\s)', text)
+tokens = [t.strip() for t in tokens if t.strip()]
+print(tokens)
+# ['Hello', ',', 'world', '.', 'Is', 'this', '--', 'a', 'test', '?']
+```
+
+We keep punctuation as separate tokens because it carries meaning: a question mark changes what should come next.
+
+<Callout type="note">
+Whether to keep whitespace is a design choice. Dropping it keeps sequences short; keeping it matters for text where spacing is meaningful, such as Python code.
+</Callout>
+
+## Step 2: Mapping tokens to IDs
+
+Next we build a **vocabulary**: every unique token in the training text, each given an integer ID. Encoding looks tokens up in the vocabulary; decoding does the reverse.
+
+```python
+class SimpleTokenizer:
+    def __init__(self, vocab):
+        self.str_to_int = vocab                                  # "fox" -> 12
+        self.int_to_str = {i: s for s, i in vocab.items()}      # 12 -> "fox"
+
+    def encode(self, text):
+        tokens = [t.strip() for t in re.split(r'([,.:;?_!"()\']|--|\s)', text) if t.strip()]
+        tokens = [t if t in self.str_to_int else "<|unk|>" for t in tokens]
+        return [self.str_to_int[t] for t in tokens]
+
+    def decode(self, ids):
+        text = " ".join(self.int_to_str[i] for i in ids)
+        return re.sub(r'\s+([,.?!"()\'])', r'\1', text)  # re-attach punctuation
+```
+
+Two **special tokens** are commonly added to the vocabulary:
+
+- `<|unk|>` stands in for any word not in the vocabulary.
+- `<|endoftext|>` separates unrelated documents when they're concatenated into one long training stream.
+
+Try the tokenizer below. Its vocabulary was built from a tiny text, so it's easy to trip up:
+
+<TokenizerPlayground />
+
+You'll quickly see the weakness: any new word collapses into `<|unk|>`, and all of those unknown words look identical to the model. A real vocabulary built from a huge corpus would be enormous and *still* miss names, typos and new words.
+
+## Step 3: Byte-pair encoding
+
+GPT models solve this with **byte-pair encoding** (BPE). Instead of whole words, the vocabulary contains **subword** pieces learned from data:
+
+1. Start with a vocabulary of individual characters (GPT-2 actually uses the 256 possible bytes).
+2. Count every adjacent pair of symbols in the training text.
+3. Merge the most frequent pair into a new symbol and add it to the vocabulary.
+4. Repeat until the vocabulary reaches the target size.
+
+Frequent words end up as single tokens. Rare words are split into smaller, reusable pieces, and anything at all can be spelled out from bytes, so no `<|unk|>` is ever needed.
+
+<BpeStepper />
+
+GPT-2's BPE tokenizer has a vocabulary of 50,257 tokens. You don't need to train it yourself: OpenAI's `tiktoken` library ships it ready to use.
+
+```python
+import tiktoken
+
+tokenizer = tiktoken.get_encoding("gpt2")
+text = "Good morning! <|endoftext|> The robot tasted a glorptastic sandwich."
+ids = tokenizer.encode(text, allowed_special={"<|endoftext|>"})
+
+print(len(ids))                          # more tokens than words: rare words get split
+print(50256 in ids)                      # True: <|endoftext|> has ID 50256
+print([tokenizer.decode([i]) for i in ids])  # see where the word boundaries fall
+print(tokenizer.decode(ids) == text)     # True: encoding is lossless
+```
+
+Two things to notice. First, `<|endoftext|>` has ID `50256`, the very last entry in the vocabulary. Second, the made-up word "glorptastic" doesn't cause an error: it's simply split into several smaller pieces the tokenizer does know. Common words like " morning" (note the leading space, which is part of the token) stay whole.
+
+## Step 4: Creating input–target pairs
+
+An LLM learns by predicting the next token. So from our long stream of token IDs we cut out **windows** of a fixed **context length**. For each window, the **target** is the same window shifted one position to the right.
+
+That single window actually contains several prediction tasks: given the first token predict the second, given the first two predict the third, and so on.
+
+<SlidingWindow />
+
+In PyTorch, we wrap this logic in a `Dataset` and let a `DataLoader` handle batching and shuffling:
+
+```python
+import torch
+from torch.utils.data import Dataset, DataLoader
+
+class NextTokenDataset(Dataset):
+    def __init__(self, text, tokenizer, context_length, stride):
+        ids = tokenizer.encode(text, allowed_special={"<|endoftext|>"})
+        self.inputs, self.targets = [], []
+        for start in range(0, len(ids) - context_length, stride):
+            window = ids[start : start + context_length + 1]
+            self.inputs.append(torch.tensor(window[:-1]))   # all but the last
+            self.targets.append(torch.tensor(window[1:]))   # all but the first
+
+    def __len__(self):
+        return len(self.inputs)
+
+    def __getitem__(self, i):
+        return self.inputs[i], self.targets[i]
+
+
+dataset = NextTokenDataset(raw_text, tiktoken.get_encoding("gpt2"),
+                           context_length=256, stride=256)
+loader = DataLoader(dataset, batch_size=8, shuffle=True, drop_last=True)
+
+inputs, targets = next(iter(loader))
+print(inputs.shape)   # torch.Size([8, 256]): 8 windows of 256 token IDs
+```
+
+<Callout type="tip">
+Set `context_length=4, stride=1` and print a batch. You'll see each window overlap its neighbour by three tokens. Overlap produces more training examples but also more repetition, which can encourage overfitting.
+</Callout>
+
+## Step 5: Token embeddings
+
+Token IDs are just labels; ID 500 isn't "bigger" than ID 499 in any meaningful way. The network needs a richer representation, so each ID is mapped to a vector of learnable numbers: an **embedding**.
+
+An embedding layer is simply a weight matrix with one row per token in the vocabulary. Looking up token `i` means taking row `i`.
+
+```python
+vocab_size = 50257
+emb_dim = 256
+
+token_embedding = torch.nn.Embedding(vocab_size, emb_dim)
+token_vectors = token_embedding(inputs)
+print(token_vectors.shape)  # torch.Size([8, 256, 256]): batch × tokens × emb_dim
+```
+
+These weights start random. During training they're adjusted so that tokens used in similar ways end up with similar vectors.
+
+## Step 6: Adding position information
+
+There's one more problem. The attention mechanism we'll build in the next chapter looks at all tokens at once, and on its own has no idea about their order. To it, "dog bites man" and "man bites dog" would contain exactly the same vectors.
+
+GPT fixes this with a second embedding layer: one learnable vector for each **position** in the context window. The position vector is added to the token vector:
+
+```python
+context_length = 256
+pos_embedding = torch.nn.Embedding(context_length, emb_dim)
+
+positions = torch.arange(context_length)          # 0, 1, 2, … 255
+input_vectors = token_vectors + pos_embedding(positions)
+print(input_vectors.shape)  # torch.Size([8, 256, 256])
+```
+
+PyTorch **broadcasts** the `[256, 256]` position embeddings across all 8 sequences in the batch. Explore the lookups below:
+
+<EmbeddingLookup />
+
+<Callout type="note">
+The original transformer used fixed sine and cosine patterns for positions. GPT-2 instead *learns* its absolute position embeddings, just like its token embeddings. Many newer models use relative schemes such as RoPE.
+</Callout>
+
+These `input_vectors` are exactly what flows into the heart of the model. Next up: attention.
+
+<Quiz questions={quiz} />

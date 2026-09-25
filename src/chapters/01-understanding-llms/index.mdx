@@ -1,0 +1,74 @@
+import { Callout, Quiz } from '../../components';
+import { PipelineAnimation } from './PipelineAnimation';
+import { NextWordGame } from './NextWordGame';
+import { quiz } from './quiz';
+
+Large language models (LLMs) like ChatGPT can write essays, explain code and hold a conversation. It's tempting to think of them as mysterious, but at their core they are neural networks trained to do one surprisingly simple thing:
+
+<Callout type="key">
+Given some text, **predict what comes next**.
+</Callout>
+
+Over this course you'll build a small GPT-style model yourself, piece by piece. By the end you'll understand every component, from how text is chopped into tokens to how the model is taught to follow instructions.
+
+## What is an LLM?
+
+An LLM is a deep neural network trained on an enormous amount of text. "Large" refers both to the training data (hundreds of billions of words) and to the model itself (billions of adjustable numbers called **parameters**).
+
+During training, the model sees a piece of text and is asked to guess the next word. When it's wrong, its parameters are nudged so it's a little less wrong next time. Repeat that a few hundred billion times and something remarkable happens: to get good at predicting the next word, the model has to pick up grammar, facts about the world, and even some reasoning.
+
+Try it yourself. You already have a language model in your head:
+
+<NextWordGame />
+
+## A brief history: from RNNs to transformers
+
+Before 2017, most language models were **recurrent neural networks** (RNNs). They read text one word at a time and squeezed everything they'd seen into a single fixed-size memory. Long sentences were a problem: by the end, details from the beginning had faded.
+
+The 2017 paper *Attention Is All You Need* introduced the **transformer**. Instead of a single memory, every word can directly "look at" every other word and decide which ones matter. This mechanism, **self-attention**, is the heart of every modern LLM, and you'll build it from scratch in Chapter 3.
+
+The original transformer had two halves:
+
+- An **encoder** that reads the input and builds a rich representation of it.
+- A **decoder** that generates output text one token at a time.
+
+Two families of models grew out of this:
+
+- **BERT**-style models keep the encoder. They're great at understanding text (classification, search).
+- **GPT**-style models keep only the decoder. They're great at generating text. This is what we'll build.
+
+<Callout type="note">
+Modern LLMs aren't only transformers in the abstract; they're transformers trained at a massive scale. GPT-3 has 175 billion parameters. The model we'll build is GPT-2 "small", with 124 million: big enough to generate coherent text, small enough to run on a laptop.
+</Callout>
+
+## The three stages of building an LLM
+
+Building a useful LLM happens in stages. Step through them below:
+
+<PipelineAnimation />
+
+The first two stages produce a **foundation model**: something that has absorbed a lot of language but will simply continue whatever text you give it. Ask a base model "What is the capital of France?" and it might reply with more quiz questions instead of an answer!
+
+The third stage, **fine-tuning**, is where it becomes useful for a particular job. Two common kinds:
+
+- **Classification fine-tuning**: teach the model to assign labels, like "spam" or "not spam" (Chapter 6).
+- **Instruction fine-tuning**: teach the model to follow instructions and answer questions (Chapter 7).
+
+## Why "self-supervised"?
+
+Most machine learning needs labeled data: photos tagged "cat" or "dog", emails marked "spam". Collecting labels is slow and expensive.
+
+Next-token prediction sidesteps this. Every sentence already contains its own answers: the label for "The cat sat on the" is simply the next word in the text, "mat". This is called **self-supervised learning**, and it's why LLMs can train on practically the whole internet.
+
+## The plan for this course
+
+Here's the roadmap, and roughly what you'll build in each chapter:
+
+- **Chapter 2, Working with text data**: turn text into tokens, token IDs and embedding vectors.
+- **Chapter 3, Attention**: code self-attention, causal masking and multi-head attention.
+- **Chapter 4, The GPT model**: assemble transformer blocks into a complete model that can generate text.
+- **Chapter 5, Pretraining**: measure how wrong the model is and train it to be less wrong.
+- **Chapter 6, Classification**: adapt the model to detect spam.
+- **Chapter 7, Instructions**: adapt the model to follow instructions.
+
+<Quiz questions={quiz} />

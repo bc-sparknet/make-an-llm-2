@@ -1,0 +1,47 @@
+.context {
+  font-size: 1.2rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.blank {
+  display: inline-block;
+  min-width: 3em;
+  padding: 0 4px;
+  border-bottom: 2px solid var(--accent);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.option,
+.next {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.option:hover {
+  border-color: var(--accent);
+}
+
+.verdict {
+  margin-top: var(--space-3);
+  font-size: 0.92rem;
+}
+
+.next {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}

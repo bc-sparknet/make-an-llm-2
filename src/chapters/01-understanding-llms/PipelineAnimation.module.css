@@ -1,0 +1,87 @@
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-3);
+  position: relative;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  position: relative;
+  margin: 0 !important;
+}
+
+/* connector line between nodes */
+.stage + .stage::before {
+  content: '';
+  position: absolute;
+  top: 26px;
+  right: 50%;
+  width: 100%;
+  height: 3px;
+  background: var(--border);
+  z-index: 0;
+  transition: background 0.4s ease;
+}
+
+.stage[data-state='done'] + .stage::before,
+.stage[data-state='done'] + .stage[data-state='active']::before {
+  background: var(--accent);
+}
+
+.node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 3px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 1.4rem;
+  cursor: pointer;
+  transition: border-color 0.3s ease, transform 0.3s ease;
+}
+
+.stage[data-state='done'] .node {
+  border-color: var(--accent);
+}
+
+.stage[data-state='active'] .node {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: scale(1.12);
+}
+
+.stage[data-state='todo'] .node {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.detail {
+  min-height: 5.5em;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 0.93rem;
+  animation: fade-in 0.35s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}

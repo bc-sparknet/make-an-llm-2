@@ -1,0 +1,105 @@
+/* ---- Slider ---- */
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sliderLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.value {
+  font-family: var(--font-mono);
+  color: var(--accent-strong);
+}
+
+.slider input[type='range'] {
+  width: 100%;
+  height: 32px; /* generous touch target */
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+/* ---- Segmented ---- */
+.segmentedWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.segmentedLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.segment {
+  flex: 1 1 auto;
+  min-height: 38px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segment[aria-checked='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+/* ---- Stepper ---- */
+.stepControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.stepButton {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.stepButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.play {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.9rem;
+}
+
+.stepLabel {
+  margin-left: var(--space-2);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
