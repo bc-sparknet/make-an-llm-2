@@ -12,7 +12,8 @@ interface Props {
   selected?: number;
 }
 
-const PALETTE = ['#e9b8a2', '#a9c7ea', '#b5dcc2', '#d6c1ec', '#f0d596', '#f1b5c6'];
+/** Chip colours are defined as --chip-1 … --chip-6 in styles/tokens.css. */
+const PALETTE_SIZE = 6;
 
 /** Tokens rendered as coloured chips; colour cycles so boundaries are obvious. */
 export function TokenChips({ tokens, ids, highlight = [], dim = [], onTokenClick, selected }: Props) {
@@ -27,7 +28,7 @@ export function TokenChips({ tokens, ids, highlight = [], dim = [], onTokenClick
             data-highlight={highlight.includes(i)}
             data-dim={dim.includes(i)}
             data-selected={selected === i}
-            style={{ '--chip': PALETTE[i % PALETTE.length] } as CSSProperties}
+            style={{ '--chip': `var(--chip-${(i % PALETTE_SIZE) + 1})` } as CSSProperties}
             onClick={onTokenClick ? () => onTokenClick(i) : undefined}
           >
             <span className={styles.chipText}>{t.replace(/ /g, '·') || '∅'}</span>

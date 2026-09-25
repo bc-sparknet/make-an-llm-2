@@ -31,6 +31,15 @@
 
   --code-bg: #f4f1ec;
 
+  /* Pastel chip colours for tokens; text on them is always dark (--chip-text). */
+  --chip-1: #e9b8a2;
+  --chip-2: #a9c7ea;
+  --chip-3: #b5dcc2;
+  --chip-4: #d6c1ec;
+  --chip-5: #f0d596;
+  --chip-6: #f1b5c6;
+  --chip-text: #1f1e1c;
+
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
 

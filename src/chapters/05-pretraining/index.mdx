@@ -422,14 +422,14 @@ Training on one short story taught us how pretraining works, but it can't produc
 The process has three parts:
 
 1. **Download** the released weights (available in sizes from 124M to 1.5B parameters).
-2. **Match the configuration**: GPT-2 was trained with a 1,024-token context window and uses bias terms in its query, key and value projections.
+2. **Match the configuration**: GPT-2 uses a 1,024-token context window and bias terms in its query, key and value projections. The `GPT_CONFIG_124M` from Chapter 4 already matches; for the larger sizes you'd change `emb_dim`, `n_layers` and `n_heads`.
 3. **Copy each tensor** into the corresponding layer of our model, checking that shapes line up.
 
 ```python
-NEW_CONFIG = GPT_CONFIG_124M.copy()
-NEW_CONFIG.update({"context_length": 1024, "qkv_bias": True})
+# A helper that downloads OpenAI's checkpoint and returns its tensors as a dict
+settings, params = download_and_load_gpt2(model_size="124M", models_dir="gpt2")
 
-gpt = GPTModel(NEW_CONFIG)
+gpt = GPTModel(GPT_CONFIG_124M)
 load_weights_into_gpt(gpt, params)   # copies OpenAI's tensors layer by layer
 gpt.to(device).eval()
 ```

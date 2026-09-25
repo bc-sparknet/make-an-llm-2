@@ -74,7 +74,7 @@ tr[data-highlight='true'] .cell {
   border: 2px solid transparent;
   border-radius: 7px;
   background: var(--chip);
-  color: #1f1e1c;
+  color: var(--chip-text);
   font-family: var(--font-mono);
   font-size: 0.85rem;
   line-height: 1.3;

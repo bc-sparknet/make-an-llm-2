@@ -1,0 +1,123 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) 0;
+}
+
+.stack > li {
+  margin: 0;
+}
+
+.layer,
+.head {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: opacity 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+}
+
+.layer[data-locked='true'] {
+  background: var(--surface-2);
+  opacity: 0.65;
+}
+
+.layer[data-trainable='true'] {
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+
+.head {
+  border-style: dashed;
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  animation: swap-in 0.45s ease;
+}
+
+.head[data-kind='cls'] {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+@keyframes swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.96);
+  }
+}
+
+.icon {
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.name {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.detail {
+  font-weight: 400;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.params {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.stats div {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.stats dt {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.stats dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.stats small {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.accent {
+  color: var(--accent-strong);
+}
+
+.legend {
+  margin: 0 0 var(--space-2);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+}

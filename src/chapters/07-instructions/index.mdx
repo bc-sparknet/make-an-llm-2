@@ -1,1 +1,324 @@
-Coming soon.
+import { Callout, Quiz } from '../../components';
+import { PromptTemplateBuilder } from './PromptTemplateBuilder';
+import { CollateStepper } from './CollateStepper';
+import { JudgeDemo } from './JudgeDemo';
+import { quiz } from './quiz';
+
+In Chapter 6 we bolted a two-output head onto GPT and turned it into a spam detector. Useful, but narrow.
+
+This chapter keeps the original language-modelling head and teaches the model something far more general: when someone gives it an instruction, **answer it**. This is the step that turns a text-completion engine into an assistant.
+
+## What instruction fine-tuning does
+
+A pretrained model has one reflex: continue the text. Give a base model "Explain what a noun is." and it may carry on with "Explain what a verb is. Explain what an adjective is.", as if it were reading a worksheet. It isn't being unhelpful; it just has no idea it's being asked something.
+
+Instruction fine-tuning fixes this by training on thousands of examples of *an instruction followed by a good response*. The mechanics are exactly those of pretraining: next-token prediction and cross-entropy loss. Only the data changes.
+
+<Callout type="key">
+Instruction fine-tuning doesn't teach the model new facts so much as a new **habit**: read the request, write a response that fits it, then stop.
+</Callout>
+
+Afterwards, the same model given the same prompt replies with something like "A noun is a word that names a person, place, thing or idea." And then, crucially, it ends.
+
+## The dataset
+
+Our dataset has about 1,100 examples stored as a JSON list. Each entry has three fields:
+
+- **`instruction`**: the task, e.g. "Rewrite the sentence in the passive voice."
+- **`input`**: optional extra material to work on. Often empty.
+- **`output`**: the response we want the model to learn.
+
+```python
+import json
+
+with open("instruction-data.json") as f:
+    data = json.load(f)
+
+print(len(data))   # 1100
+print(data[42])
+# {'instruction': 'Convert the temperature to Fahrenheit.',
+#  'input': '25 °C',
+#  'output': '25 °C is 77 °F.'}
+```
+
+### A prompt template
+
+The model sees a single string of tokens, so the three fields must be stitched together in a consistent format. We'll use the **Alpaca** style, named after an early Stanford instruction-tuning project. A fixed preamble is followed by Markdown-style section headers.
+
+Another popular choice is the **Phi-3** style, which marks turns with special tokens like `<|user|>` and `<|assistant|>`. It produces shorter prompts. Try both:
+
+<PromptTemplateBuilder />
+
+In code, the formatting function builds everything except the response. We'll append the response separately, which makes it easy to reuse the same function at inference time.
+
+```python
+def format_prompt(entry):
+    text = (
+        "Below is an instruction that describes a task. "
+        "Write a response that appropriately completes the request."
+        f"\n\n### Instruction:\n{entry['instruction']}"
+    )
+    if entry["input"]:
+        text += f"\n\n### Input:\n{entry['input']}"
+    return text
+
+entry = data[42]
+full_text = format_prompt(entry) + f"\n\n### Response:\n{entry['output']}"
+```
+
+<Callout type="note">
+The template itself doesn't matter much, but it must be **identical** during training and inference. The model learns that text after `### Response:` is its turn to speak.
+</Callout>
+
+We split the data 85% / 5% / 10% into training, validation and test sets:
+
+```python
+n_train = int(len(data) * 0.85)
+n_test = int(len(data) * 0.10)
+
+train_data = data[:n_train]
+test_data = data[n_train:n_train + n_test]
+val_data = data[n_train + n_test:]
+print(len(train_data), len(val_data), len(test_data))   # 935 55 110
+```
+
+## Batching with a custom collate function
+
+A `Dataset` that pre-tokenises each formatted example is short:
+
+```python
+class InstructionDataset(Dataset):
+    def __init__(self, data, tokenizer):
+        self.encoded = [
+            tokenizer.encode(format_prompt(e) + f"\n\n### Response:\n{e['output']}")
+            for e in data
+        ]
+
+    def __getitem__(self, idx):
+        return self.encoded[idx]
+
+    def __len__(self):
+        return len(self.encoded)
+```
+
+The interesting part is turning a handful of these variable-length lists into tensors. In Chapter 6 we padded everything to the longest message in the *whole* dataset. That wastes compute: most batches would be mostly padding.
+
+Instead, a `DataLoader` accepts a **collate function**, which receives the raw examples of one batch and decides how to combine them. Ours will pad only to the longest example *in that batch*, and build the inputs and targets at the same time. Step through what it does:
+
+<CollateStepper />
+
+### Why −100?
+
+PyTorch's `cross_entropy` has a parameter `ignore_index`, which defaults to `-100`. Any target position with that value is skipped: it adds nothing to the loss and sends no gradient. You can check this with a toy example:
+
+```python
+import torch.nn.functional as F
+
+logits = torch.tensor([[-1.0, 1.0], [-0.5, 1.5], [0.2, 0.1]])
+targets = torch.tensor([0, 1, 1])
+print(F.cross_entropy(logits, targets))           # averages all 3 rows
+
+targets = torch.tensor([0, 1, -100])
+print(F.cross_entropy(logits, targets))           # same as using only the first 2 rows
+```
+
+Replacing padding targets with `-100` means the model is never graded on predicting padding. Keeping the first end-of-text target means it *is* graded on knowing when to stop.
+
+### The collate function
+
+Here are all those steps in code. It also truncates sequences that exceed an allowed length (GPT-2's context is 1,024 tokens) and moves tensors to the target device, so the training loop doesn't have to.
+
+```python
+def collate(batch, pad_id=50256, ignore_index=-100,
+            allowed_max_length=None, device="cpu"):
+    # +1 because every sequence gets one end-of-text token appended
+    longest = max(len(seq) + 1 for seq in batch)
+    inputs, targets = [], []
+
+    for seq in batch:
+        seq = seq + [pad_id]                           # the end-of-text token
+        seq = seq + [pad_id] * (longest - len(seq))    # padding
+        x = torch.tensor(seq[:-1])
+        y = torch.tensor(seq[1:])
+
+        # Keep the first end-of-text target, ignore the rest
+        pad_positions = torch.nonzero(y == pad_id).squeeze(1)
+        if pad_positions.numel() > 1:
+            y[pad_positions[1:]] = ignore_index
+
+        if allowed_max_length is not None:
+            x, y = x[:allowed_max_length], y[:allowed_max_length]
+        inputs.append(x)
+        targets.append(y)
+
+    return torch.stack(inputs).to(device), torch.stack(targets).to(device)
+```
+
+`DataLoader` only passes the batch to the collate function, so we pre-fill the other arguments with `functools.partial`:
+
+```python
+from functools import partial
+
+customized_collate = partial(collate, device=device, allowed_max_length=1024)
+
+torch.manual_seed(123)
+train_loader = DataLoader(
+    InstructionDataset(train_data, tokenizer), batch_size=8,
+    collate_fn=customized_collate, shuffle=True, drop_last=True,
+)
+val_loader = DataLoader(InstructionDataset(val_data, tokenizer), batch_size=8,
+                        collate_fn=customized_collate)
+```
+
+<Callout type="tip">
+To **mask the instruction**, record each example's prompt length in the dataset and set `y[:prompt_len - 1] = -100` inside `collate`. The model still reads the prompt but is scored only on the response. Results vary: it can help on some datasets and hurt on others, so treat it as something to experiment with.
+</Callout>
+
+## Fine-tuning a larger model
+
+Following instructions is harder than spotting spam, and GPT-2 small (124M) struggles to produce useful answers. So we step up to **GPT-2 medium**, with 355 million parameters: wider (1,024-dimensional embeddings), deeper (24 blocks) and with 16 attention heads.
+
+Thanks to the code from Chapters 4 and 5, switching is just a different config and checkpoint:
+
+```python
+BASE_CONFIG = {
+    "vocab_size": 50257, "context_length": 1024,
+    "drop_rate": 0.0, "qkv_bias": True,
+    "emb_dim": 1024, "n_layers": 24, "n_heads": 16,   # GPT-2 medium
+}
+
+settings, params = download_and_load_gpt2(model_size="355M", models_dir="gpt2")
+model = GPTModel(BASE_CONFIG)
+load_weights_into_gpt(model, params)
+model.to(device)
+```
+
+This time we don't freeze anything or swap any heads. The whole model is trained, and we can reuse the `train_model_simple` loop from Chapter 5 unchanged. The loss is still next-token cross-entropy; the `-100` targets simply drop out of it.
+
+```python
+torch.manual_seed(123)
+optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.1)
+
+train_losses, val_losses, tokens_seen = train_model_simple(
+    model, train_loader, val_loader, optimizer, device,
+    num_epochs=2, eval_freq=5, eval_iter=5,
+    start_context=format_prompt(val_data[0]), tokenizer=tokenizer,
+)
+```
+
+Two epochs take roughly 15 minutes on a laptop CPU, or a minute or two on a modern GPU. Plot the losses and you'll see the familiar shape: a steep drop in the first few dozen steps, then a slow glide. Training loss keeps falling in the second epoch while validation loss levels off. That growing gap is an early sign of overfitting, and a hint that more epochs wouldn't help much.
+
+<Callout type="note">
+Printing a sample response after each epoch is a great qualitative check. Early outputs tend to echo the instruction; by the end they should read like real answers.
+</Callout>
+
+## Extracting and saving responses
+
+To get an answer, we format the prompt exactly as in training (without the response), generate, and then cut away the prompt so only the model's new text remains.
+
+```python
+def respond(entry, model, tokenizer, max_new_tokens=256):
+    prompt = format_prompt(entry) + "\n\n### Response:\n"
+    ids = generate(
+        model, text_to_token_ids(prompt, tokenizer).to(device),
+        max_new_tokens=max_new_tokens,
+        context_size=BASE_CONFIG["context_length"],
+        eos_id=50256,                      # stop at end-of-text
+    )
+    text = token_ids_to_text(ids, tokenizer)
+    return text[len(prompt):].strip()
+```
+
+The `eos_id` argument lets `generate` stop as soon as the model emits end-of-text. That's the habit the kept `50256` target was teaching.
+
+We run this over every test example and store the answer next to the reference, so evaluation can happen later without regenerating:
+
+```python
+from tqdm import tqdm
+
+for entry in tqdm(test_data):
+    entry["model_response"] = respond(entry, model, tokenizer)
+
+with open("instruction-data-with-response.json", "w") as f:
+    json.dump(test_data, f, indent=4)
+
+torch.save(model.state_dict(), "gpt2-medium355M-sft.pth")
+```
+
+## Evaluating with an LLM judge
+
+For spam, evaluation was easy: count the correct labels. Free-form answers are harder. "3,000 m", "three thousand metres" and "It's 3000 metres." are all correct, yet none matches the reference string exactly.
+
+A practical solution is to have a **bigger, more capable LLM act as a judge**. For each test example we show it the instruction, the reference answer and our model's answer, and ask for a score from 0 to 100.
+
+<JudgeDemo />
+
+We'll run the judge locally with **Ollama**, a free tool for running open models on your own machine, using the 8-billion-parameter **Llama 3**. Once Ollama is running (`ollama run llama3`), it serves a small REST API we can call from Python:
+
+```python
+import json
+import urllib.request
+
+def ask_ollama(prompt, model="llama3", url="http://localhost:11434/api/chat"):
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "options": {"seed": 123, "temperature": 0, "num_ctx": 2048},
+        "stream": False,
+    }
+    request = urllib.request.Request(
+        url, data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(request) as response:
+        return json.loads(response.read())["message"]["content"]
+```
+
+Setting `temperature` to 0 and fixing the seed makes the judge as repeatable as possible. Asking it to reply with *only* an integer makes its answer easy to parse:
+
+```python
+def judge_scores(entries):
+    scores = []
+    for e in tqdm(entries, desc="Scoring"):
+        prompt = (
+            "You are grading a model's answer.\n"
+            f"Instruction: {format_prompt(e)}\n"
+            f"Reference answer: {e['output']}\n"
+            f"Model answer: {e['model_response']}\n"
+            "Score the model answer from 0 (useless) to 100 (perfect), "
+            "using the reference as a guide. Reply with a single integer only."
+        )
+        try:
+            scores.append(int(ask_ollama(prompt).strip()))
+        except ValueError:
+            print("Could not parse score for:", e["instruction"])
+    return scores
+
+scores = judge_scores(test_data)
+print(f"Average score: {sum(scores) / len(scores):.1f}")
+```
+
+For our 355M model, expect an average somewhere around 50. That's far from a commercial assistant, but a large jump from the base model, which scores much lower because it rarely answers at all.
+
+<Callout type="warning">
+LLM judges are convenient, not infallible. They can be swayed by confident wording or length, and scores shift between judge models. Use them to **compare** models under the same setup, and always read a sample of answers yourself.
+</Callout>
+
+## Where to go from here
+
+You've now built an LLM end to end: tokenising text, coding attention, assembling a GPT, pretraining it, and fine-tuning it both to classify and to follow instructions. Every piece of a modern assistant has a direct ancestor in the code you've written.
+
+Some directions to explore next:
+
+- **Parameter-efficient fine-tuning.** Methods like **LoRA** freeze the model and train small low-rank adapter matrices instead. They slash memory use and make it practical to fine-tune multi-billion-parameter models on one GPU.
+- **Preference tuning.** Instruction tuning teaches a model to answer; preference tuning teaches it which answers people *prefer*. **RLHF** trains a reward model from human rankings and optimises against it; **DPO** reaches a similar result more simply, directly from pairs of preferred and rejected responses.
+- **Bigger and newer models.** The same ideas apply to open models like Llama, Qwen, Gemma or Mistral. Most differences are refinements (rotary position embeddings, grouped-query attention, RMSNorm) that you're now equipped to read about and implement.
+- **Better data.** More diverse, higher-quality instruction data usually beats a cleverer training loop. Try generating or curating your own.
+
+<Callout type="key">
+Pretraining gives a model knowledge; fine-tuning gives it a job. You now know how both work, from the inside.
+</Callout>
+
+Well done for making it to the end. The best next step is to change something in your model and see what happens.
+
+<Quiz questions={quiz} />
