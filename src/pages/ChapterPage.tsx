@@ -1,7 +1,7 @@
 import { Suspense, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { MDXProvider } from '@mdx-js/react';
-import { chapterComponents, findChapter } from '../chapters/registry';
+import { chapterComponents, chapterName, findChapter } from '../chapters/registry';
 import { mdxComponents } from '../components/content/mdxComponents';
 import { ChapterContext } from '../components/content/ChapterContext';
 import { ReadingProgress } from '../components/layout/ReadingProgress';
@@ -16,7 +16,7 @@ export function ChapterPage() {
   const [progress, update] = useChapterProgress(slug ?? '');
 
   useEffect(() => {
-    if (chapter) document.title = `${chapter.number}. ${chapter.title} · Build an LLM`;
+    if (chapter) document.title = `${chapter.label}. ${chapter.title} · Build an LLM`;
   }, [chapter]);
 
   if (!chapter) return <NotFoundPage />;
@@ -25,7 +25,10 @@ export function ChapterPage() {
   return (
     <ChapterContext.Provider value={{ slug: chapter.slug }}>
       <ReadingProgress />
-      <p className={styles.eyebrow}>Chapter {chapter.number}</p>
+      <p className={styles.eyebrow}>
+        {chapterName(chapter)}
+        {chapter.track === 'foundations' && <span className={styles.optional}>Optional</span>}
+      </p>
       <h1>{chapter.title}</h1>
       <OpenInColab slug={chapter.slug} />
 
@@ -63,7 +66,7 @@ export function ChapterPage() {
           </Link>
         ) : (
           <Link to="/" className={`${styles.pagerLink} ${styles.pagerNext}`}>
-            <span className={styles.pagerLabel}>Finished!</span>
+            <span className={styles.pagerLabel}>{chapter.track === 'main' ? 'Finished!' : 'Done'}</span>
             <span>Back to all chapters</span>
           </Link>
         )}

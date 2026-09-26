@@ -51,6 +51,25 @@
   background: var(--success);
 }
 
+.track + .track {
+  margin-top: var(--space-5);
+}
+
+.trackTitle {
+  margin: 0 0 var(--space-1);
+}
+
+.trackDescription {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.card[data-track='foundations'] .cardNumber {
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 0.9rem;
+}
+
 .list {
   list-style: none;
   padding: 0;

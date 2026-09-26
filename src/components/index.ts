@@ -14,3 +14,4 @@ export { HeatGrid } from './viz/HeatGrid';
 export { TokenChips } from './viz/TokenChips';
 export { ProbabilityBars } from './viz/ProbabilityBars';
 export { FunctionPlot, type PlotSeries } from './viz/FunctionPlot';
+export { TensorView, shapeOf, type TensorData, type CellState } from './viz/TensorView';

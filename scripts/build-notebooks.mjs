@@ -38,12 +38,15 @@ const config = JSON.parse(readFileSync(join(ROOT, 'site.config.json'), 'utf8'));
 const checkOnly = process.argv.includes('--check');
 const CARRY_IMPORTS = 'import math\nimport tiktoken\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F';
 
-/** Chapter titles, read from the registry so there is one source of truth. */
-function readTitles() {
+/** Chapter names and titles, read from the registry so there is one source of truth. */
+function readRegistry() {
   const src = readFileSync(join(CHAPTERS_DIR, 'registry.ts'), 'utf8');
-  const titles = {};
-  for (const m of src.matchAll(/slug: '([^']+)',\s*number: \d+,\s*title: '([^']+)'/g)) titles[m[1]] = m[2];
-  return titles;
+  const meta = {};
+  const pattern = /slug: '([^']+)',\s*label: '([^']+)',\s*track: '([^']+)',\s*title: '([^']+)'/g;
+  for (const [, slug, label, track, title] of src.matchAll(pattern)) {
+    meta[slug] = { title, name: track === 'main' ? `Chapter ${label}` : `Foundations ${label}` };
+  }
+  return meta;
 }
 
 /** Splits MDX into an ordered list of headings and fenced code blocks. */
@@ -90,12 +93,12 @@ const code = (text, metadata = {}) => ({
   source: toSource(text),
 });
 
-function buildNotebook({ number, slug, title, items, carried, setupFile }) {
+function buildNotebook({ name, slug, title, items, carried, setupFile }) {
   const chapterUrl = `${config.siteUrl}#/chapter/${slug}`;
   const cells = [
     markdown(
-      `# Chapter ${number}: ${title}\n\n` +
-        `Companion notebook for [Chapter ${number} of the interactive course](${chapterUrl}). ` +
+      `# ${name}: ${title}\n\n` +
+        `Companion notebook for [${name} of the interactive course](${chapterUrl}). ` +
         `The code cells follow the chapter's examples in order; the explanations are on the site.\n\n` +
         `*This notebook is generated from the chapter source. To change it, edit the chapter and run ` +
         '`npm run notebooks`.*',
@@ -134,19 +137,23 @@ function buildNotebook({ number, slug, title, items, carried, setupFile }) {
 }
 
 function main() {
-  const titles = readTitles();
+  const registry = readRegistry();
+  // Main chapters are "NN-slug", optional Foundations chapters are "aN-slug".
   const folders = readdirSync(CHAPTERS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && /^\d\d-/.test(d.name))
+    .filter((d) => d.isDirectory() && /^(\d\d|a\d)-/.test(d.name))
     .map((d) => d.name)
     .sort();
 
-  const carried = []; // carry blocks accumulated from earlier chapters
+  let carried = []; // carry blocks accumulated from earlier chapters in the same track
+  let currentTrack;
   const outputs = new Map(); // path -> contents
   const manifest = {};
 
   for (const folder of folders) {
-    const number = Number(folder.slice(0, 2));
     const slug = folder.slice(3);
+    const track = folder.startsWith('a') ? 'foundations' : 'main';
+    if (track !== currentTrack) [carried, currentTrack] = [[], track];
+    const { name, title } = registry[slug] ?? { name: folder, title: slug };
     const dir = join(CHAPTERS_DIR, folder);
     const items = parseMdx(readFileSync(join(dir, 'index.mdx'), 'utf8'));
     const setupPath = join(dir, 'notebook-setup.py');
@@ -155,13 +162,13 @@ function main() {
 
     if (codeItems.length > 0) {
       const file = `${folder}.ipynb`;
-      const nb = buildNotebook({ number, slug, title: titles[slug] ?? slug, items, carried: [...carried], setupFile });
+      const nb = buildNotebook({ name, slug, title, items, carried: [...carried], setupFile });
       outputs.set(join(OUT_DIR, file), `${JSON.stringify(nb, null, 1)}\n`);
       manifest[slug] = `notebooks/${file}`;
     }
 
     const carry = codeItems.filter((i) => i.flags.includes('carry')).map((i) => i.code);
-    if (carry.length) carried.push(`# ---- from Chapter ${number} ----\n${carry.join('\n\n')}`);
+    if (carry.length) carried.push(`# ---- from ${name} ----\n${carry.join('\n\n')}`);
   }
   outputs.set(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
 

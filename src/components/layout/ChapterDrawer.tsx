@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { chapters } from '../../chapters/registry';
+import { chaptersInTrack, trackInfo, type Track } from '../../chapters/registry';
 import { useProgress } from '../../lib/progress';
 import styles from './ChapterDrawer.module.css';
 
@@ -37,13 +37,18 @@ export function ChapterDrawer({ open, onClose }: Props) {
           <span className={styles.number}>⌂</span>
           <span className={styles.title}>Home</span>
         </NavLink>
-        {chapters.map((c) => (
-          <NavLink key={c.slug} to={`/chapter/${c.slug}`} className={styles.item}>
-            <span className={styles.number} data-done={!!progress[c.slug]?.completed}>
-              {progress[c.slug]?.completed ? '✓' : c.number}
-            </span>
-            <span className={styles.title}>{c.title}</span>
-          </NavLink>
+        {(['main', 'foundations'] as Track[]).map((track) => (
+          <div key={track}>
+            <div className={styles.group}>{trackInfo[track].title}</div>
+            {chaptersInTrack(track).map((c) => (
+              <NavLink key={c.slug} to={`/chapter/${c.slug}`} className={styles.item}>
+                <span className={styles.number} data-done={!!progress[c.slug]?.completed} data-track={c.track}>
+                  {progress[c.slug]?.completed ? '✓' : c.label}
+                </span>
+                <span className={styles.title}>{c.title}</span>
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
     </>

@@ -1,0 +1,113 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.shape {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* One colour per dimension, used for the shape, the dim names and slice labels. */
+.dim[data-dim='0'],
+.dimName[data-dim='0'],
+.sliceLabel[data-dim='0'] {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+.dim[data-dim='1'],
+.dimName[data-dim='1'] {
+  color: var(--blue);
+  font-weight: 700;
+}
+.dim[data-dim='2'],
+.dimName[data-dim='2'] {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.dimNames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: 0.78rem;
+}
+
+.stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.slice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.sliceLabel {
+  background: none;
+  padding: 0;
+  font-size: 0.78rem;
+}
+
+.grid {
+  display: inline-grid;
+  gap: 3px;
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  transition: background 0.25s ease, opacity 0.25s ease, border-color 0.25s ease;
+}
+
+button.cell {
+  cursor: pointer;
+  min-height: 34px;
+}
+
+.cell[data-state='highlight'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.cell[data-state='result'] {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.cell[data-state='dim'] {
+  opacity: 0.3;
+}
