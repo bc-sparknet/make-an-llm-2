@@ -19,11 +19,16 @@ This is an independent study companion, not affiliated with the author or publis
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # unit tests for the math/tokenizer helpers
+npm test         # unit tests + check that notebooks match the chapters
+npm run notebooks # regenerate the Colab notebooks in notebooks/
 npm run build    # typecheck + static build in dist/
 ```
 
 The build is fully static (hash-based routing, relative asset paths) so `dist/` can be served from any static host. A GitHub Pages workflow is included in `.github/workflows/deploy.yml`.
+
+## Colab notebooks
+
+Each chapter's code is also available as a runnable notebook in [`notebooks/`](notebooks), generated from the chapter source and linked from the site with an "Open in Colab" button. Chapters 5–7 download GPT-2 weights from the Hugging Face Hub; a GPU runtime is recommended for chapters 6 and 7.
 
 ## Contributing content
 

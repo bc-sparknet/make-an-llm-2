@@ -5,6 +5,7 @@ import { chapterComponents, findChapter } from '../chapters/registry';
 import { mdxComponents } from '../components/content/mdxComponents';
 import { ChapterContext } from '../components/content/ChapterContext';
 import { ReadingProgress } from '../components/layout/ReadingProgress';
+import { OpenInColab } from '../components/content/OpenInColab';
 import { useChapterProgress } from '../lib/progress';
 import { NotFoundPage } from './NotFoundPage';
 import styles from './ChapterPage.module.css';
@@ -26,6 +27,7 @@ export function ChapterPage() {
       <ReadingProgress />
       <p className={styles.eyebrow}>Chapter {chapter.number}</p>
       <h1>{chapter.title}</h1>
+      <OpenInColab slug={chapter.slug} />
 
       <article className={styles.article}>
         <Suspense fallback={<p className={styles.loading}>Loading chapter…</p>}>

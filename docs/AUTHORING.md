@@ -61,6 +61,37 @@ Shared building blocks (import from `../../components`):
 | `<ProbabilityBars labels values>` | Distributions (softmax outputs, etc.) |
 | `<FunctionPlot series xRange yRange>` | Plots of functions like GELU |
 
+## Colab notebooks
+
+Every chapter with Python code gets a runnable notebook in `notebooks/`, linked from the chapter page with a "Run this chapter's code in Colab" button. The notebooks are **generated from the chapter MDX**, so the site and the notebooks can't drift apart:
+
+```bash
+npm run notebooks        # regenerate notebooks/*.ipynb after editing a chapter
+```
+
+`npm test` (and CI) fails if the committed notebooks are out of date.
+
+Code fences control what goes into the notebook:
+
+| Fence | Site | Notebook |
+| --- | --- | --- |
+| ```` ```python ```` | shown | code cell |
+| ```` ```python carry ```` | shown | code cell, **and** copied into the setup cell of every later chapter (classes/helpers later chapters use; `torch`, `nn`, `F`, `math` and `tiktoken` are imported for them) |
+| ```` ```python skip ```` | shown | left out (fragments that only make sense next to the prose) |
+| ```` ```python no-test ```` | shown | code cell, skipped by the local test runner (needs an external service, e.g. Ollama) |
+
+A chapter can also have a `notebook-setup.py` next to its `index.mdx`; it's appended to that notebook's setup cell. In it, `# @embed notebooks/data/<file>` writes that repo file into the notebook's working directory (the repo may be private, so notebooks never download from it).
+
+**Code blocks must run top to bottom.** Before committing chapter code changes, execute the notebooks:
+
+```bash
+pip install torch tiktoken pandas safetensors nbclient nbformat ipykernel
+python scripts/run_notebooks.py            # all chapters (training runs take a while on CPU)
+python scripts/run_notebooks.py 05 --fast  # one chapter, with shortened training
+```
+
+Notebooks that download data (GPT-2 weights, datasets) cache it on disk, so `--fixtures DIR` can pre-seed those files when running offline.
+
 ## Design rules
 
 - **Mobile first.** Design every widget for a 360–390px-wide screen first. No horizontal page scroll; wide matrices go inside `<HeatGrid>` (which scrolls itself) or a `.scroll-x` div. Touch targets are at least 44px.
@@ -76,5 +107,6 @@ Shared building blocks (import from `../../components`):
 npm install
 npm run dev        # local dev server
 npm run build      # typecheck + production build into dist/
-npm test           # unit tests
+npm test           # unit tests + notebook freshness check
+npm run notebooks  # regenerate Colab notebooks from the chapters
 ```

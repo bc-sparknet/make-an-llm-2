@@ -291,7 +291,7 @@ The reshaping goes like this:
 
 Finally, an **output projection** `nn.Linear(d_out, d_out)` mixes the heads' results together. It isn't strictly needed, but every GPT-style model uses one.
 
-```python
+```python carry
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_in, d_out, context_length, dropout, num_heads, qkv_bias=False):
         super().__init__()

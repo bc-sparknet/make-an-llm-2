@@ -1,0 +1,8 @@
+{
+  "text-data": "notebooks/02-text-data.ipynb",
+  "attention": "notebooks/03-attention.ipynb",
+  "gpt-model": "notebooks/04-gpt-model.ipynb",
+  "pretraining": "notebooks/05-pretraining.ipynb",
+  "classification": "notebooks/06-classification.ipynb",
+  "instructions": "notebooks/07-instructions.ipynb"
+}
