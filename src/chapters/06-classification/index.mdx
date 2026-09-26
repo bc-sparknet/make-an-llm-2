@@ -26,13 +26,30 @@ A classifier can be small, needs relatively little data, always returns a valid 
 
 ## Preparing the dataset
 
-We'll use the public **SMS Spam Collection**: about 5,600 real text messages, each labelled `ham` (a normal message) or `spam`. It's a plain tab-separated file, so pandas can load it directly.
+We'll use the public **SMS Spam Collection**: about 5,600 real text messages, each labelled `ham` (a normal message) or `spam`. It's a plain tab-separated file inside a zip archive. First, download and unpack it:
+
+```python
+import os
+import urllib.request
+import zipfile
+
+url = "https://archive.ics.uci.edu/static/public/228/sms+spam+collection.zip"
+data_path = "sms_spam_collection/SMSSpamCollection.tsv"
+
+if not os.path.exists(data_path):
+    urllib.request.urlretrieve(url, "sms_spam_collection.zip")
+    with zipfile.ZipFile("sms_spam_collection.zip") as archive:
+        archive.extractall("sms_spam_collection")
+    os.rename("sms_spam_collection/SMSSpamCollection", data_path)
+```
+
+Then pandas can load it directly:
 
 ```python
 import pandas as pd
 
 df = pd.read_csv(
-    "sms_spam_collection/SMSSpamCollection.tsv",
+    data_path,
     sep="\t", header=None, names=["Label", "Text"],
 )
 print(df["Label"].value_counts())
@@ -172,11 +189,11 @@ It's worth a quick sanity check that the weights loaded correctly: the model sho
 
 ```python
 ids = generate_greedy(
-    model, text_to_token_ids("Every effort moves you", tokenizer),
+    model, text_to_token_ids("The weather today is", tokenizer),
     max_new_tokens=15, context_size=BASE_CONFIG["context_length"],
 )
 print(token_ids_to_text(ids, tokenizer))
-# Every effort moves you ... (followed by fluent, if aimless, text)
+# The weather today is ... (followed by fluent, if aimless, text)
 ```
 
 Good. Now try simply *asking* the base model to classify:
@@ -215,7 +232,7 @@ num_classes = 2
 model.out_head = torch.nn.Linear(BASE_CONFIG["emb_dim"], num_classes)
 
 # 3. Unfreeze the last transformer block and the final LayerNorm
-for p in model.trf_blocks[-1].parameters():
+for p in model.blocks[-1].parameters():
     p.requires_grad = True
 for p in model.final_norm.parameters():
     p.requires_grad = True
@@ -354,6 +371,7 @@ With training done, we measure accuracy on the full splits, including the test s
 ```python
 for name, loader in [("train", train_loader), ("val", val_loader), ("test", test_loader)]:
     print(f"{name}: {accuracy(loader, model, device):.1%}")
+# Typical results (yours will differ slightly):
 # train: 97.2%
 # val: 97.3%
 # test: 95.7%

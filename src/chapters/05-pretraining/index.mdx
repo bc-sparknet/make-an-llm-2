@@ -17,7 +17,7 @@ Pretraining is next-token prediction plus a score. The score (the **loss**) tell
 
 Before training anything, we need a quick way to see what the model produces. Generating text involves converting back and forth between strings and token IDs, so two small helpers save a lot of typing:
 
-```python
+```python carry
 import tiktoken
 import torch
 
@@ -146,7 +146,7 @@ with open("short_story.txt", "r", encoding="utf-8") as f:
     text_data = f.read()
 
 print(len(text_data), len(tokenizer.encode(text_data)))
-# roughly 20,000 characters, 5,000 tokens
+# about 18,000 characters and 4,300 tokens
 ```
 
 We hold back 10% of the text as a **validation set**. The model never trains on it, so its loss there tells us whether the model is learning general patterns or just memorising:
@@ -169,7 +169,7 @@ val_loader = create_dataloader(
 
 Two small functions compute the loss for a single batch, and the average over a whole loader:
 
-```python
+```python carry
 def calc_loss_batch(input_batch, target_batch, model, device):
     input_batch = input_batch.to(device)
     target_batch = target_batch.to(device)
@@ -213,7 +213,7 @@ Training repeats the same four moves over and over, once per batch:
 
 One pass over the whole training set is an **epoch**. Here's the loop in full:
 
-```python
+```python carry
 def train_model_simple(model, train_loader, val_loader, optimizer, device,
                        num_epochs, eval_freq, eval_iter, start_context, tokenizer):
     train_losses, val_losses, tokens_seen = [], [], []
@@ -248,7 +248,7 @@ Forgetting `optimizer.zero_grad()` is a classic bug. PyTorch *adds* new gradient
 
 The two helpers switch the model into evaluation mode (no dropout, no gradient tracking), measure or generate, then switch back:
 
-```python
+```python carry
 def evaluate_model(model, train_loader, val_loader, device, eval_iter):
     model.eval()
     with torch.no_grad():
@@ -304,7 +304,7 @@ So far we've generated text **greedily**: always picking the single most likely 
 
 Instead we can **sample**: treat the softmax output as a probability distribution and draw a token from it at random. Likely tokens still win most of the time, but less likely ones get an occasional chance.
 
-```python
+```python skip
 probas = torch.softmax(next_token_logits, dim=-1)
 next_token = torch.multinomial(probas, num_samples=1)
 ```
@@ -315,7 +315,7 @@ Two knobs control how adventurous sampling is.
 
 **Temperature** divides the logits by a number `T` before the softmax:
 
-```python
+```python skip
 probas = torch.softmax(next_token_logits / temperature, dim=-1)
 ```
 
@@ -327,7 +327,7 @@ probas = torch.softmax(next_token_logits / temperature, dim=-1)
 
 Even with a moderate temperature, sampling from all 50,257 tokens means occasionally picking something absurd from the long tail. **Top-k sampling** keeps only the `k` most likely tokens and sets everyone else's logit to minus infinity, which softmax turns into a probability of exactly zero:
 
-```python
+```python skip
 top_logits, _ = torch.topk(next_token_logits, k=3)
 cutoff = top_logits[:, -1:]                            # the k-th largest logit
 next_token_logits = torch.where(
@@ -345,7 +345,7 @@ Play with both knobs. Try a high temperature with top-k off and see how often "b
 
 Here's an upgraded `generate` function that supports both techniques. With `temperature=0.0` and no `top_k`, it falls back to greedy decoding:
 
-```python
+```python carry
 def generate(model, idx, max_new_tokens, context_size,
              temperature=0.0, top_k=None, eos_id=None):
     for _ in range(max_new_tokens):
@@ -425,16 +425,96 @@ The process has three parts:
 2. **Match the configuration**: GPT-2 uses a 1,024-token context window and bias terms in its query, key and value projections. The `GPT_CONFIG_124M` from Chapter 4 already matches; for the larger sizes you'd change `emb_dim`, `n_layers` and `n_heads`.
 3. **Copy each tensor** into the corresponding layer of our model, checking that shapes line up.
 
+First, a helper that downloads a GPT-2 checkpoint. We fetch it from the Hugging Face Hub, which hosts OpenAI's original weights in a convenient format:
+
+```python carry
+import json
+import os
+import urllib.request
+from safetensors.torch import load_file
+
+GPT2_REPOS = {"124M": "gpt2", "355M": "gpt2-medium", "774M": "gpt2-large", "1558M": "gpt2-xl"}
+
+def download_and_load_gpt2(model_size, models_dir="gpt2"):
+    """Downloads GPT-2 weights once, then returns (settings, params) from disk."""
+    folder = os.path.join(models_dir, model_size)
+    os.makedirs(folder, exist_ok=True)
+    for file in ("config.json", "model.safetensors"):
+        path = os.path.join(folder, file)
+        if not os.path.exists(path):
+            url = f"https://huggingface.co/openai-community/{GPT2_REPOS[model_size]}/resolve/main/{file}"
+            print("Downloading", url)
+            urllib.request.urlretrieve(url, path)
+    with open(os.path.join(folder, "config.json")) as f:
+        settings = json.load(f)
+    params = load_file(os.path.join(folder, "model.safetensors"))  # name -> tensor
+    return settings, params
+```
+
+Then a function that copies each tensor into the matching layer of our model:
+
+```python carry
+def assign(param, tensor):
+    if param.shape != tensor.shape:
+        raise ValueError(f"Shape mismatch: model {tuple(param.shape)} vs checkpoint {tuple(tensor.shape)}")
+    return torch.nn.Parameter(tensor.detach().clone())
+
+def load_weights_into_gpt(gpt, params):
+    p = {k.removeprefix("transformer."): v for k, v in params.items()}
+    gpt.tok_emb.weight = assign(gpt.tok_emb.weight, p["wte.weight"])
+    gpt.pos_emb.weight = assign(gpt.pos_emb.weight, p["wpe.weight"])
+
+    for i, block in enumerate(gpt.blocks):
+        h = f"h.{i}."
+        # OpenAI stores linear weights as (in, out); nn.Linear expects (out, in), hence .T
+        # Queries, keys and values live in one combined matrix: split it in three.
+        q_w, k_w, v_w = p[h + "attn.c_attn.weight"].chunk(3, dim=-1)
+        q_b, k_b, v_b = p[h + "attn.c_attn.bias"].chunk(3, dim=-1)
+        attn = block.attn
+        attn.to_q.weight, attn.to_q.bias = assign(attn.to_q.weight, q_w.T), assign(attn.to_q.bias, q_b)
+        attn.to_k.weight, attn.to_k.bias = assign(attn.to_k.weight, k_w.T), assign(attn.to_k.bias, k_b)
+        attn.to_v.weight, attn.to_v.bias = assign(attn.to_v.weight, v_w.T), assign(attn.to_v.bias, v_b)
+        attn.out_proj.weight = assign(attn.out_proj.weight, p[h + "attn.c_proj.weight"].T)
+        attn.out_proj.bias = assign(attn.out_proj.bias, p[h + "attn.c_proj.bias"])
+
+        expand, project = block.ff.net[0], block.ff.net[2]
+        expand.weight = assign(expand.weight, p[h + "mlp.c_fc.weight"].T)
+        expand.bias = assign(expand.bias, p[h + "mlp.c_fc.bias"])
+        project.weight = assign(project.weight, p[h + "mlp.c_proj.weight"].T)
+        project.bias = assign(project.bias, p[h + "mlp.c_proj.bias"])
+
+        block.norm1.scale = assign(block.norm1.scale, p[h + "ln_1.weight"])
+        block.norm1.shift = assign(block.norm1.shift, p[h + "ln_1.bias"])
+        block.norm2.scale = assign(block.norm2.scale, p[h + "ln_2.weight"])
+        block.norm2.shift = assign(block.norm2.shift, p[h + "ln_2.bias"])
+
+    gpt.final_norm.scale = assign(gpt.final_norm.scale, p["ln_f.weight"])
+    gpt.final_norm.shift = assign(gpt.final_norm.shift, p["ln_f.bias"])
+    gpt.out_head.weight = assign(gpt.out_head.weight, p["wte.weight"])  # GPT-2 ties these
+```
+
+Now loading the real model takes three lines:
+
 ```python
-# A helper that downloads OpenAI's checkpoint and returns its tensors as a dict
 settings, params = download_and_load_gpt2(model_size="124M", models_dir="gpt2")
 
 gpt = GPTModel(GPT_CONFIG_124M)
-load_weights_into_gpt(gpt, params)   # copies OpenAI's tensors layer by layer
+load_weights_into_gpt(gpt, params)
 gpt.to(device).eval()
+
+torch.manual_seed(123)
+out = generate(
+    model=gpt,
+    idx=text_to_token_ids("The keeper climbed", tokenizer).to(device),
+    max_new_tokens=25,
+    context_size=GPT_CONFIG_124M["context_length"],
+    top_k=50,
+    temperature=1.0,
+)
+print(token_ids_to_text(out, tokenizer))
 ```
 
-The main wrinkle is bookkeeping: OpenAI's checkpoint names layers differently and stores the query, key and value weights as one combined matrix, so `load_weights_into_gpt` splits and renames tensors as it goes. The key line inside it is a shape check that fails loudly on any mismatch, rather than silently loading garbage.
+The main wrinkle is bookkeeping: OpenAI's checkpoint names layers differently, stores linear weights transposed, and keeps the query, key and value weights in one combined matrix, so `load_weights_into_gpt` splits, transposes and renames tensors as it goes. `assign` checks every shape and fails loudly on any mismatch, rather than silently loading garbage.
 
 After loading, the same `generate` call produces coherent English, because now the weights encode patterns learned from about 40 GB of web text. This pretrained model is the starting point for the next two chapters, where we fine-tune it to classify spam and to follow instructions.
 

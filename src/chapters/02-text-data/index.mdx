@@ -104,7 +104,8 @@ That single window actually contains several prediction tasks: given the first t
 
 In PyTorch, we wrap this logic in a `Dataset` and let a `DataLoader` handle batching and shuffling:
 
-```python
+```python carry
+import tiktoken
 import torch
 from torch.utils.data import Dataset, DataLoader
 
@@ -130,7 +131,13 @@ def create_dataloader(text, batch_size=8, max_length=256, stride=256,
                                context_length=max_length, stride=stride)
     return DataLoader(dataset, batch_size=batch_size,
                       shuffle=shuffle, drop_last=drop_last)
+```
 
+Let's load a short story (about 4,300 tokens) and look at one batch:
+
+```python
+with open("short_story.txt", encoding="utf-8") as f:
+    raw_text = f.read()
 
 loader = create_dataloader(raw_text, batch_size=8, max_length=256, stride=256)
 

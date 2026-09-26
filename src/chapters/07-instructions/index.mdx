@@ -28,17 +28,26 @@ Our dataset has about 1,100 examples stored as a JSON list. Each entry has three
 - **`input`**: optional extra material to work on. Often empty.
 - **`output`**: the response we want the model to learn.
 
+We'll use the small instruction dataset published alongside the book's code repository:
+
 ```python
 import json
+import os
+import urllib.request
+
+url = ("https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/"
+       "main/ch07/01_main-chapter-code/instruction-data.json")
+if not os.path.exists("instruction-data.json"):
+    urllib.request.urlretrieve(url, "instruction-data.json")
 
 with open("instruction-data.json") as f:
     data = json.load(f)
 
 print(len(data))   # 1100
 print(data[42])
-# {'instruction': 'Convert the temperature to Fahrenheit.',
-#  'input': '25 °C',
-#  'output': '25 °C is 77 °F.'}
+# {'instruction': 'What is the formula for area of a triangle?',
+#  'input': '',
+#  'output': 'The formula for the area of a triangle is 1/2 * base * height.'}
 ```
 
 ### A prompt template
@@ -159,6 +168,7 @@ def collate(batch, pad_id=50256, ignore_index=-100,
 ```python
 from functools import partial
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 customized_collate = partial(collate, device=device, allowed_max_length=1024)
 
 torch.manual_seed(123)
@@ -253,9 +263,21 @@ A practical solution is to have a **bigger, more capable LLM act as a judge**. F
 
 <JudgeDemo />
 
-We'll run the judge locally with **Ollama**, a free tool for running open models on your own machine, using the 8-billion-parameter **Llama 3**. Once Ollama is running (`ollama run llama3`), it serves a small REST API we can call from Python:
+We'll run the judge locally with **Ollama**, a free tool for running open models on your own machine, using the 8-billion-parameter **Llama 3**. Once Ollama is running (`ollama run llama3`), it serves a small REST API we can call from Python.
 
-```python
+<Callout type="note">
+Running this in Colab? Ollama isn't preinstalled, but you can install it and start it from a cell. You'll need a GPU runtime, and the model download is about 5 GB:
+
+```python no-test
+import subprocess, time
+subprocess.run("curl -fsSL https://ollama.com/install.sh | sh", shell=True, check=True)
+subprocess.Popen(["ollama", "serve"])
+time.sleep(5)
+subprocess.run(["ollama", "pull", "llama3"], check=True)
+```
+</Callout>
+
+```python no-test
 import json
 import urllib.request
 
@@ -276,7 +298,7 @@ def ask_ollama(prompt, model="llama3", url="http://localhost:11434/api/chat"):
 
 Setting `temperature` to 0 and fixing the seed makes the judge as repeatable as possible. Asking it to reply with *only* an integer makes its answer easy to parse:
 
-```python
+```python no-test
 def judge_scores(entries):
     scores = []
     for e in tqdm(entries, desc="Scoring"):

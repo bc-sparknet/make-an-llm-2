@@ -17,7 +17,7 @@ A GPT model is just **embeddings → a stack of identical transformer blocks →
 
 We'll build the smallest GPT-2 model, often called GPT-2 "small". Its whole architecture is described by a handful of numbers, which we'll keep in a plain dictionary and pass to every class:
 
-```python
+```python carry
 GPT_CONFIG_124M = {
     "vocab_size": 50257,     # number of tokens the BPE tokenizer knows
     "context_length": 1024,  # longest input the model can look at
@@ -94,7 +94,7 @@ After normalising, two learnable vectors, **scale** (γ) and **shift** (β), let
 
 A tiny constant **eps** (like 0.00001) is added to the variance before taking the square root. It never matters in practice except for one case: it prevents dividing by zero when all values are identical.
 
-```python
+```python carry
 class LayerNorm(nn.Module):
     def __init__(self, dim, eps=1e-5):
         super().__init__()
@@ -134,7 +134,7 @@ Two differences matter:
 
 GPT-2 uses a fast approximation of GELU built from `tanh`:
 
-```python
+```python carry
 import math
 
 class GELU(nn.Module):
@@ -145,7 +145,7 @@ class GELU(nn.Module):
 
 And the feed-forward network itself:
 
-```python
+```python carry
 class FeedForward(nn.Module):
     def __init__(self, cfg):
         super().__init__()
@@ -158,7 +158,11 @@ class FeedForward(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+```
 
+A quick shape check:
+
+```python
 ff = FeedForward(GPT_CONFIG_124M)
 x = torch.rand(2, 4, 768)
 print(ff(x).shape)  # torch.Size([2, 4, 768]), same shape in and out
@@ -232,7 +236,7 @@ Putting the normalisation *before* each sub-layer ("pre-LayerNorm") is what GPT-
 
 We reuse the `MultiHeadAttention` class from Chapter 3:
 
-```python
+```python carry
 class TransformerBlock(nn.Module):
     def __init__(self, cfg):
         super().__init__()
@@ -256,7 +260,11 @@ class TransformerBlock(nn.Module):
         # Second half: each token is processed on its own (FFN) + shortcut
         x = x + self.drop(self.ff(self.norm2(x)))
         return x
+```
 
+Stacking the pieces keeps the shape unchanged:
+
+```python
 block = TransformerBlock(GPT_CONFIG_124M)
 x = torch.rand(2, 4, 768)
 print(block(x).shape)  # torch.Size([2, 4, 768])
@@ -268,7 +276,7 @@ The output has exactly the input's shape. What changed is the *content*: each to
 
 With a real `TransformerBlock` and `LayerNorm`, the skeleton from the start of the chapter becomes the finished model. Only two lines change:
 
-```python
+```python carry
 class GPTModel(nn.Module):
     def __init__(self, cfg):
         super().__init__()
@@ -350,7 +358,7 @@ Always picking the most likely token is called **greedy decoding**. Step through
 
 <GenerationStepper />
 
-```python
+```python carry
 def generate_greedy(model, token_ids, max_new_tokens, context_size):
     for _ in range(max_new_tokens):
         window = token_ids[:, -context_size:]      # 1. crop
