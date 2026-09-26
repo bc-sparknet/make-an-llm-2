@@ -37,8 +37,15 @@ src/
 
 ## Adding a chapter
 
-1. Create `src/chapters/NN-slug/index.mdx`.
-2. Add an entry to `chapters` in `src/chapters/registry.ts`.
+There are two tracks:
+
+- **main**: chapters 1–7 that build the model, in folders `NN-slug`.
+- **foundations**: optional background (tensors, dimensions, matmul, autograd), labelled A1, A2… in folders `aN-slug`.
+
+1. Create `src/chapters/NN-slug/index.mdx` (or `aN-slug` for Foundations).
+2. Add an entry to `chapters` in `src/chapters/registry.ts` with its `label` and `track`. Prev/next links stay within a track.
+
+When a main chapter leans on a background concept, point to the Foundations chapter with `<FoundationLink to="dimensions">Not sure what dim=-1 means?</FoundationLink>`.
 
 ## Writing a chapter
 
@@ -52,6 +59,8 @@ Shared building blocks (import from `../../components`):
 | Component | Use |
 | --- | --- |
 | `<Callout type="note\|tip\|key\|warning">` | Asides and key takeaways |
+| `<FoundationLink to="slug">` | Pointer from a main chapter to an optional Foundations chapter |
+| `<TensorView data name dimNames cellState>` | 1–3-D tensors drawn as literal stacks of matrices, with highlighting |
 | `<Figure title caption>` | Card frame around every interactive visual |
 | `<Quiz questions={quiz} />` | End-of-chapter quiz; score is saved to progress |
 | `<Slider>`, `<Segmented>` | Inputs for visuals |

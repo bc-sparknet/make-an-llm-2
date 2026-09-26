@@ -7,6 +7,17 @@
   color: var(--accent);
 }
 
+.optional {
+  margin-left: var(--space-2);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  vertical-align: 1px;
+}
+
 .article {
   margin-top: var(--space-4);
 }

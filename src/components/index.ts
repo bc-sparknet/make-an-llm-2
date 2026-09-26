@@ -3,6 +3,7 @@
  *   import { Figure, Quiz, Callout } from '../../components';
  */
 export { Callout } from './content/Callout';
+export { FoundationLink } from './content/FoundationLink';
 export { CodeBlock } from './content/CodeBlock';
 export { Figure } from './content/Figure';
 export { Quiz, type QuizQuestion } from './content/Quiz';
@@ -14,3 +15,4 @@ export { HeatGrid } from './viz/HeatGrid';
 export { TokenChips } from './viz/TokenChips';
 export { ProbabilityBars } from './viz/ProbabilityBars';
 export { FunctionPlot, type PlotSeries } from './viz/FunctionPlot';
+export { TensorView, shapeOf, type TensorData, type CellState } from './viz/TensorView';

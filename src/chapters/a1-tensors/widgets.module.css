@@ -1,0 +1,382 @@
+/* ---- Shared bits ---- */
+.muted {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Dimension palette: matches TensorView for dims 0–2, adds purple for dim 3. */
+.dim[data-dim='0'] {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+.dim[data-dim='1'] {
+  color: var(--blue);
+  font-weight: 700;
+}
+.dim[data-dim='2'] {
+  color: var(--green);
+  font-weight: 700;
+}
+.dim[data-dim='3'] {
+  color: var(--purple);
+  font-weight: 700;
+}
+
+.shapeText {
+  background: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.viewHeader,
+.readerHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.viewName {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.viewShape {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.dimList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: 0.78rem;
+}
+
+.meaning {
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.codeLine {
+  display: inline-block;
+  font-size: 0.82rem;
+}
+
+/* ---- Buttons (preset expressions / ops) ---- */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.preset {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.preset code {
+  background: none;
+  padding: 0;
+  font-size: 0.85rem;
+  color: inherit;
+}
+
+.preset[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.preset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- Scalar ---- */
+.scalarWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.scalar {
+  display: grid;
+  place-items: center;
+  min-width: 48px;
+  height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.scalar[data-state='result'] {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+/* ---- Rank ladder ---- */
+.ladderHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+.ladderView {
+  min-height: 90px;
+}
+
+/* ---- 4-D grid of matrices ---- */
+.grid4 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.grid4Table {
+  border-collapse: separate;
+  border-spacing: var(--space-2);
+  margin: calc(-1 * var(--space-2));
+}
+
+.grid4Table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.grid4Table th[scope='row'] {
+  text-align: right;
+}
+
+.grid4Table td {
+  padding: var(--space-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  vertical-align: top;
+}
+
+.miniLabel {
+  display: block;
+  margin-bottom: 4px;
+  background: none;
+  padding: 0;
+  font-size: 0.72rem;
+}
+
+.miniGrid {
+  display: inline-grid;
+  gap: 2px;
+}
+
+.miniCell {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+/* ---- Shape reader ---- */
+.readerBlocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.readerBlock {
+  padding: var(--space-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.2s ease;
+}
+
+.readerBlock[data-active='true'] {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.readerBlockTitle {
+  margin-bottom: var(--space-1);
+  font-size: 0.82rem;
+}
+
+.readerBlockTitle code {
+  background: none;
+  padding: 0;
+}
+
+.readerGrid {
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(44px, 1fr));
+  gap: 3px;
+  max-width: 320px;
+}
+
+.readerRow {
+  display: contents;
+}
+
+.colHead {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.rowHead {
+  align-self: center;
+  padding-right: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.readerCell {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.readerCell[data-state='row'] {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.readerCell[data-state='highlight'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.readout {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.readout p {
+  margin: var(--space-1) 0;
+}
+
+.readoutIndex {
+  background: none;
+  padding: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.zoom {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.zoom code {
+  background: none;
+  padding: 0;
+  color: var(--text);
+}
+
+/* ---- Slicing ---- */
+.dimNotes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+}
+
+.dimNotes li {
+  display: grid;
+  grid-template-columns: 8.5rem 3.2rem 1fr;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.dimNotes li code {
+  background: none;
+  padding: 0;
+}
+
+.dimNotes li[data-removed='true'] > span:first-child {
+  text-decoration: line-through;
+}
+
+.dimNotes li[data-removed='true'] > span:last-child {
+  color: var(--text-muted);
+}
+
+.resultBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.resultHead {
+  font-size: 0.88rem;
+}
+
+.resultHead > code:first-child {
+  background: none;
+  padding: 0;
+  font-weight: 700;
+}
+
+/* ---- Unsqueeze ---- */
+.log {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  font-size: 0.74rem;
+  line-height: 1.6;
+}
+
+.log code {
+  background: none;
+  padding: 0;
+}

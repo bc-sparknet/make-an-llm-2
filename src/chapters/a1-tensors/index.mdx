@@ -1,0 +1,332 @@
+import { Callout, Quiz } from '../../components';
+import { RankLadder } from './RankLadder';
+import { ShapeReader } from './ShapeReader';
+import { SlicingPlayground } from './SlicingPlayground';
+import { UnsqueezeDemo } from './UnsqueezeDemo';
+import { quiz } from './quiz';
+
+Every number inside a GPT model lives in a **tensor**. The code in the main chapters is full of lines like `x.shape  # [2, 4, 768]` and `logits[:, -1, :]`. If those make you pause, this chapter is for you.
+
+You probably already picture a matrix as rows and columns. The goal here is to make three, four or more dimensions feel just as concrete, so that when you see a shape you can *see* the data it describes.
+
+<Callout type="key">
+**The habit this chapter builds:** give every dimension a name. `[2, 4, 768]` is hard to picture. "2 texts, each 4 tokens long, each token a list of 768 numbers" is easy.
+</Callout>
+
+## What a tensor is
+
+A tensor is a box of numbers arranged along some number of **dimensions** (also called **axes**). You already know the first few:
+
+- **0 dimensions:** a single number, a **scalar**.
+- **1 dimension:** a list of numbers, a **vector**.
+- **2 dimensions:** a list of vectors, all the same length, a **matrix**.
+- **3 dimensions:** a list of matrices, all the same size.
+- **4 dimensions:** a list of 3-D tensors. Or, easier to picture, a *grid* of matrices.
+
+Notice the pattern. Each step up is just "a list of the previous thing". Nothing new happens at 3 or 4 dimensions; there's simply one more level of list.
+
+<RankLadder />
+
+Two words describe a tensor's layout:
+
+- **ndim** (or **rank**): how many dimensions it has.
+- **shape**: how long each dimension is, outermost first.
+
+```python
+import torch
+
+loss = torch.tensor(3.7)                       # 0-D: a scalar
+emb = torch.tensor([0.2, -1.3, 0.8, 0.5])      # 1-D: a vector
+sent = torch.tensor([[0.2, -1.3, 0.8, 0.5],    # 2-D: a matrix, one row per token
+                     [0.9, 0.1, -0.4, 0.3],
+                     [-0.7, 0.6, 0.2, -1.1]])
+
+for t in (loss, emb, sent):
+    print(t.ndim, t.shape)
+# 0 torch.Size([])
+# 1 torch.Size([4])
+# 2 torch.Size([3, 4])
+```
+
+A scalar's shape is empty, `[]`, because it has no dimensions to measure. The ndim is always the number of entries in the shape.
+
+For bigger tensors we rarely type the numbers out. `torch.rand(...)` fills any shape with random values (more on it later):
+
+```python
+x = torch.rand(2, 3, 4)        # 3-D: 2 sentences × 3 tokens × 4 features
+q = torch.rand(2, 12, 3, 64)   # 4-D: 2 sentences × 12 heads × 3 tokens × 64 features
+
+print(x.ndim, x.shape)         # 3 torch.Size([2, 3, 4])
+print(q.ndim, q.shape)         # 4 torch.Size([2, 12, 3, 64])
+print(x.shape[0], x.shape[-1]) # 2 4   (a shape is indexable, like a tuple)
+print(x.numel())               # 24    (total number of values: 2 × 3 × 4)
+```
+
+### Integers and floats
+
+Every tensor also has a **dtype**: the kind of number it stores. In an LLM you'll meet two all the time:
+
+- **`torch.int64`** for **token IDs**. An ID is a position in the vocabulary, so it must be a whole number.
+- **`torch.float32`** for everything the model computes: embeddings, weights, attention scores, logits.
+
+PyTorch picks the dtype from the values you give it:
+
+```python
+ids = torch.tensor([15496, 11, 314, 716])   # "Hello, I am" as GPT-2 token IDs
+
+print(ids.dtype)                  # torch.int64
+print(emb.dtype)                  # torch.float32
+print(ids.float().dtype)          # torch.float32   .float() converts a copy
+```
+
+<Callout type="note">
+An embedding layer looks rows up by ID, so it needs integers. Feed it floats and you get an error. Most maths (softmax, layer norm, matrix multiplies) needs floats. If you see a dtype error, check which of the two you have.
+</Callout>
+
+## Reading a shape
+
+Here's the shape you'll see most in this course: **`[batch, tokens, emb_dim]`**. Read it outermost first:
+
+> a **batch** of sentences, each a list of **tokens**, each token a vector of **emb_dim** numbers.
+
+Written out as nested Python lists, the **first** dimension is the **outermost** list. Count the opening brackets at the start and you have the number of dimensions:
+
+```python
+x = torch.tensor([
+    [[ 0.1,  0.5, -0.3,  0.8],    # sentence 0, token 0: "the"
+     [ 0.7, -0.2,  0.4,  0.0],    # sentence 0, token 1: "cat"
+     [-0.6,  0.9,  0.2,  0.4]],   # sentence 0, token 2: "sat"
+    [[ 0.3,  0.3, -0.8,  0.1],    # sentence 1, token 0: "a"
+     [-0.4,  0.6,  0.5, -0.9],    # sentence 1, token 1: "dog"
+     [ 0.2, -0.1,  0.7,  0.6]],   # sentence 1, token 2: "ran"
+])
+
+print(x.shape)        # torch.Size([2, 3, 4])
+print(len(x))         # 2   len() counts the outermost dimension...
+print(len(x[0]))      # 3   ...one level in: tokens in sentence 0
+print(len(x[0][0]))   # 4   ...and in again: features of one token
+```
+
+So the shape is simply "how many items at each level of nesting". The last dimension is the innermost list: the numbers that sit side by side in one row.
+
+<ShapeReader />
+
+Try reading `[2, 3, 4]` as a picture: **two** matrices (one per sentence), each with **three** rows (one per token) and **four** columns (one per feature). That picture is exactly how the diagrams on this page draw 3-D tensors: a stack of matrices, one per index of the first dimension.
+
+A helpful idiom in model code unpacks the shape into names, so the rest of the function reads like prose:
+
+```python
+batch_size, num_tokens, emb_dim = x.shape
+print(batch_size, num_tokens, emb_dim)   # 2 3 4
+```
+
+### Four dimensions: a grid of matrices
+
+Multi-head attention (Chapter 3) splits each token's vector into several **heads** and handles them side by side. Its queries, keys and values end up as
+
+> **`[batch, heads, tokens, head_dim]`**
+
+Don't try to picture a four-dimensional cube. Picture a **grid of matrices** instead: one row of the grid per sentence, one column per head, and in each cell an ordinary `tokens × head_dim` matrix. That's the "4-D" rung of the ladder above.
+
+```python
+batch_size, num_heads, num_tokens, head_dim = 8, 12, 256, 64
+q = torch.rand(batch_size, num_heads, num_tokens, head_dim)
+
+print(q.shape)         # torch.Size([8, 12, 256, 64])
+print(q[0].shape)      # torch.Size([12, 256, 64])   all 12 heads for sentence 0
+print(q[0, 3].shape)   # torch.Size([256, 64])       one matrix: sentence 0, head 3
+```
+
+The last two dimensions are almost always "the matrix" (here, tokens × features). Everything in front of them just says *which* matrix: which sentence, which head. Foundations A3 shows why that matters for matrix multiplication.
+
+<Callout type="tip">
+When a shape confuses you, write the names under it, like `[8, 12, 256, 64]` → `[batch, heads, tokens, head_dim]`. It feels slow at first. It saves a lot of time once models get bigger.
+</Callout>
+
+## Indexing and slicing
+
+To pull pieces out of a tensor you index it, one position per dimension, separated by commas. We'll use a tensor holding the numbers 0 to 23 so it's easy to see which ones come out. (`reshape` arranges a flat list into a shape; Foundations A3 covers it properly.)
+
+```python
+x = torch.arange(24).reshape(2, 3, 4)   # 2 sentences × 3 tokens × 4 features
+print(x)
+# tensor([[[ 0,  1,  2,  3],
+#          [ 4,  5,  6,  7],
+#          [ 8,  9, 10, 11]],
+#
+#         [[12, 13, 14, 15],
+#          [16, 17, 18, 19],
+#          [20, 21, 22, 23]]])
+```
+
+For each dimension you can write:
+
+- **an integer**, like `0` or `-1`: pick that one position. Negative numbers count from the end, so `-1` is the last.
+- **a slice**, like `:` (everything) or `1:3` (positions 1 and 2; the end is excluded): keep a range.
+- **`...`** (an ellipsis): "`:` for every dimension I didn't mention".
+
+Leaving indices off the end is the same as writing `:` for them, so `x[0]` means `x[0, :, :]`.
+
+<SlicingPlayground />
+
+Here's the rule that tells you the resulting shape without running anything:
+
+<Callout type="key">
+**An integer index removes its dimension. A slice keeps it.** To get the result's shape, cross out every dimension that got an integer. The rest keep their order.
+</Callout>
+
+```python
+print(x[0].shape)          # torch.Size([3, 4])   sentence 0: a matrix
+print(x[1, 2])             # tensor([20, 21, 22, 23])   sentence 1, token 2
+print(x[:, -1, :])         # the last token of every sentence
+# tensor([[ 8,  9, 10, 11],
+#         [20, 21, 22, 23]])
+print(x[:, :, 0])          # feature 0 of every token
+# tensor([[ 0,  4,  8],
+#         [12, 16, 20]])
+print(x[0, 1:3].shape)     # torch.Size([2, 4])   tokens 1 and 2 of sentence 0
+print(x[..., -1])          # same as x[:, :, -1]
+# tensor([[ 3,  7, 11],
+#         [15, 19, 23]])
+print(x[1, 2, 3])          # tensor(23)   one index per dim: a 0-D tensor
+print(x[1, 2, 3].item())   # 23           .item() turns a 0-D tensor into a Python number
+```
+
+The difference between an integer and a slice matters even when they pick the same data. `-1` removes the dimension; the slice `-1:` keeps it, with size 1:
+
+```python
+print(x[:, -1, :].shape)   # torch.Size([2, 4])
+print(x[:, -1:, :].shape)  # torch.Size([2, 1, 4])
+```
+
+### The one you'll use most: `[:, -1, :]`
+
+A GPT model outputs a vector for **every** position in the sequence. But when generating text (Chapter 4) we only care about the prediction after the **last** token, and when classifying a whole text (Chapter 6) we use the last token's output too, because it's the only one that has seen every other token.
+
+`x[:, -1, :]` reads as "every sentence, last token, all features":
+
+```python
+h = torch.rand(8, 256, 768)    # [batch, tokens, emb_dim]: 8 sequences of 256 tokens
+last = h[:, -1, :]             # [batch, emb_dim]: the final token of each sequence
+print(last.shape)              # torch.Size([8, 768])
+```
+
+The token dimension had an integer (`-1`), so it's gone. The batch and feature dimensions had `:`, so they stay. The same line on logits shaped `[batch, tokens, vocab_size]` gives `[batch, vocab_size]`: one score per vocabulary word, for each sequence.
+
+## Creating tensors
+
+You'll rarely type values out by hand. These functions make a tensor of whatever shape you ask for:
+
+```python
+print(torch.zeros(2, 3))         # all zeros, shape [2, 3]
+# tensor([[0., 0., 0.],
+#         [0., 0., 0.]])
+print(torch.ones(3))             # tensor([1., 1., 1.])
+print(torch.arange(5))           # tensor([0, 1, 2, 3, 4])   like range(5)
+print(torch.arange(2, 10, 3))    # tensor([2, 5, 8])         start, stop, step
+```
+
+`zeros`, `ones` and `rand` make floats; `arange` with whole numbers makes integers.
+
+`torch.rand` gives random numbers between 0 and 1. "Random" numbers in a computer come from a generator you can reset with a **seed**. Set the same seed and you get the same numbers every time, which is how the main chapters keep their results reproducible:
+
+```python
+torch.manual_seed(123)
+print(torch.rand(2, 3))
+# tensor([[0.2961, 0.5166, 0.2517],
+#         [0.6886, 0.0740, 0.8665]])
+
+torch.manual_seed(123)
+print(torch.rand(2, 3))          # exactly the same numbers again
+```
+
+### Adding and removing size-1 dimensions
+
+A dimension of size 1 doesn't add any data, but it changes how the tensor is organised. Two methods manage them:
+
+- **`unsqueeze(d)`** inserts a new dimension of size 1 at position `d`.
+- **`squeeze(d)`** removes dimension `d` if it has size 1. `squeeze()` with no argument removes *every* size-1 dimension.
+
+<UnsqueezeDemo />
+
+Why would you want an extra dimension that holds nothing? Because a GPT model always expects a **batch**: input of shape `[batch, tokens]`. A single prompt tokenised on its own is just `[tokens]`, so we wrap it in a batch of one:
+
+```python
+ids = torch.tensor([15496, 11, 314, 716])   # "Hello, I am"
+print(ids.shape)                 # torch.Size([4])
+
+batch = ids.unsqueeze(0)         # add a batch dimension at the front
+print(batch.shape)               # torch.Size([1, 4])
+print(batch)                     # tensor([[15496,    11,   314,   716]])
+
+print(ids.unsqueeze(1).shape)    # torch.Size([4, 1])   new dim at the end instead
+print(ids.unsqueeze(-1).shape)   # torch.Size([4, 1])   -1 means "at the end"
+print(batch.squeeze(0).shape)    # torch.Size([4])      and back again
+```
+
+This is exactly what the `text_to_token_ids` helper in Chapter 5 does, and its partner `token_ids_to_text` squeezes the batch dimension off again before decoding:
+
+```python
+import tiktoken
+
+tokenizer = tiktoken.get_encoding("gpt2")
+
+def text_to_token_ids(text, tokenizer):
+    return torch.tensor(tokenizer.encode(text)).unsqueeze(0)   # [tokens] -> [1, tokens]
+
+def token_ids_to_text(token_ids, tokenizer):
+    return tokenizer.decode(token_ids.squeeze(0).tolist())     # [1, tokens] -> [tokens]
+
+batch = text_to_token_ids("Hello, I am", tokenizer)
+print(batch.shape)                          # torch.Size([1, 4])
+print(token_ids_to_text(batch, tokenizer))  # Hello, I am
+```
+
+<Callout type="warning">
+Prefer `squeeze(0)` over plain `squeeze()`. With one prompt that happens to be one token long, `squeeze()` removes the token dimension too:
+
+```python
+one = torch.rand(1, 1, 768)     # a batch of 1 sequence, 1 token long
+print(one.squeeze().shape)      # torch.Size([768])      both size-1 dims gone!
+print(one.squeeze(0).shape)     # torch.Size([1, 768])   only the batch dim
+```
+</Callout>
+
+## Devices: CPU and GPU
+
+Every tensor lives on a **device**: the computer's main memory (`cpu`) or a graphics card (`cuda`). GPUs do the huge matrix multiplies in an LLM many times faster, which is why training is practical on them.
+
+`.to(device)` returns a copy of a tensor on that device. The usual pattern picks the GPU when there is one:
+
+```python
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)        # cuda on a GPU runtime, cpu otherwise
+
+x = torch.rand(2, 3).to(device)
+print(x.device)      # cuda:0 on a GPU, cpu otherwise
+print(x.shape)       # torch.Size([2, 3])   moving never changes the shape
+```
+
+Tensors taking part in one operation must be on the **same** device. Adding a CPU tensor to a GPU tensor raises an error, so the main chapters move the model and each batch of data to the same `device`:
+
+```python skip
+model = model.to(device)                  # moves all of the model's weights
+inputs, targets = inputs.to(device), targets.to(device)
+```
+
+<Callout type="note">
+On an Apple Silicon Mac the GPU device is called `mps` (check with `torch.backends.mps.is_available()`). Everything else works the same way.
+</Callout>
+
+## Summary
+
+- A tensor is nested lists of numbers. **ndim** is how deep the nesting goes; **shape** is how long each level is, outermost first.
+- **Name every dimension.** `[batch, tokens, emb_dim]` is a batch of sentences, each a list of tokens, each token a vector.
+- A 4-D shape like `[batch, heads, tokens, head_dim]` is a grid of matrices: the last two dimensions are the matrix, the rest say which one.
+- **Integer indices remove a dimension, slices keep it.** `x[:, -1, :]` turns `[batch, tokens, emb_dim]` into `[batch, emb_dim]`.
+- `unsqueeze(0)` adds a batch dimension; `squeeze(0)` removes it.
+- Token IDs are `int64`, everything the model computes is `float32`, and tensors that interact must share a device.
+
+Next, Foundations A2 looks at what happens when you *combine* the numbers along one dimension, as in `mean(dim=-1)` and `softmax(dim=-1)`.
+
+<Quiz questions={quiz} />

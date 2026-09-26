@@ -1,0 +1,354 @@
+import { Callout, Quiz } from '../../components';
+import { ReduceExplorer } from './ReduceExplorer';
+import { SoftmaxDimDemo } from './SoftmaxDimDemo';
+import { LayerNormStepper } from './LayerNormStepper';
+import { BroadcastVisualizer } from './BroadcastVisualizer';
+import { quiz } from './quiz';
+
+Half the lines in a GPT model have a `dim=` somewhere: `softmax(scores, dim=-1)`, `x.mean(dim=-1, keepdim=True)`, `logits.argmax(dim=-1)`. With a 2-D table you can just about picture "rows" and "columns". Once there's a third dimension, "normalise across dim 2" can easily turn into a phrase you nod along to without seeing it.
+
+This chapter gives you **one rule** and **one picture** that work for any number of dimensions. Then we use them to take apart softmax, layer norm and broadcasting, the three places where `dim` matters most in an LLM.
+
+<Callout type="key">
+**Reducing over dim `d` makes dimension `d` disappear.** Every other dimension survives, in order. With `keepdim=True`, dimension `d` stays but shrinks to size 1.
+</Callout>
+
+## The one rule
+
+Here's a small tensor with shape `[2, 3, 4]`. Think of it as a batch of **2** texts, each **3** tokens long, each token a vector of **4** numbers. That's exactly the `[batch, tokens, emb_dim]` layout from Chapter 4, just tiny.
+
+```python
+import torch
+
+x = torch.tensor([[[3, 1, 4, 1],
+                   [5, 9, 2, 6],
+                   [5, 3, 5, 8]],
+                  [[9, 7, 9, 3],
+                   [2, 3, 8, 4],
+                   [6, 2, 6, 4]]])
+print(x.shape)  # torch.Size([2, 3, 4])
+```
+
+Now sum it over each dimension in turn and look only at the shapes:
+
+```python
+print(x.sum(dim=0).shape)  # torch.Size([3, 4])   the 2 is gone
+print(x.sum(dim=1).shape)  # torch.Size([2, 4])   the 3 is gone
+print(x.sum(dim=2).shape)  # torch.Size([2, 3])   the 4 is gone
+```
+
+That's the whole rule. Cross out the number at position `d` in the shape, and what's left is the result's shape. It doesn't matter whether the operation is `sum`, `mean`, `max`, `min`, `var` or `std`: they're all **reductions**, and they all follow it.
+
+Negative dims count from the end, like Python list indexing. `dim=-1` is the **last** dimension, whatever the tensor's rank. For our `[2, 3, 4]` tensor that's the same as `dim=2`:
+
+```python
+print(x.sum(dim=-1).shape)  # torch.Size([2, 3])   same as dim=2
+print(x.sum(dim=-2).shape)  # torch.Size([2, 4])   same as dim=1
+```
+
+<Callout type="tip">
+LLM code prefers `dim=-1` because the last dimension is almost always the embedding (or vocabulary) dimension, whether the tensor is `[tokens, emb]`, `[batch, tokens, emb]` or `[batch, heads, tokens, head_dim]`. `dim=-1` keeps meaning "per vector" no matter how many dimensions sit in front.
+</Callout>
+
+## The picture: walk along d and squash it
+
+The rule tells you the shape. Here's how to see the *values*.
+
+**For every position in the other dimensions, walk along dimension `d`, collect the numbers you pass, and combine them into one number.**
+
+For `x.sum(dim=2)`: pick a text `b` and a token `t`. Walk along the 4 embedding values of `x[b, t, :]` and add them up. That gives one number, `out[b, t]`. Do it for every `(b, t)` pair: 2 × 3 = 6 pairs, hence shape `[2, 3]`.
+
+For `x.sum(dim=0)`: pick a token `t` and an embedding slot `e`. Walk along the batch, collecting `x[0, t, e]` and `x[1, t, e]`, and add them. It's like laying the two matrices on top of each other and pressing them flat.
+
+Try it. Pick an operation and a dim, then tap any output cell to see which inputs were squashed into it (or tap an input cell to see where it went). Press play to walk through every output.
+
+<ReduceExplorer />
+
+The same computations in code. Match each one against the explorer:
+
+```python
+print(x.sum(dim=0))
+# tensor([[12,  8, 13,  4],
+#         [ 7, 12, 10, 10],
+#         [11,  5, 11, 12]])
+
+print(x.sum(dim=2))
+# tensor([[ 9, 22, 21],
+#         [28, 17, 18]])
+
+print(x.float().mean(dim=-1))   # mean needs floats
+# tensor([[2.2500, 5.5000, 5.2500],
+#         [7.0000, 4.2500, 4.5000]])
+```
+
+`max` along a dimension gives back two things: the biggest values, and *where* along that dimension they were found:
+
+```python
+result = x.max(dim=1)            # walk down the 3 tokens
+print(result.values)
+# tensor([[5, 9, 5, 8],
+#         [9, 7, 9, 4]])
+print(result.indices)            # which token (0, 1 or 2) held each max
+# tensor([[1, 1, 2, 2],
+#         [0, 0, 0, 1]])
+```
+
+<Callout type="note">
+You can reduce over several dims at once with a tuple, `x.sum(dim=(0, 1))`, which squashes both and leaves shape `[4]`. With no `dim` at all, `x.sum()` squashes *everything* into a single number.
+</Callout>
+
+## keepdim=True: squash, but leave a slot
+
+Sometimes you want to use the reduced result *against the original*. The classic case: subtract each token's mean from that token's vector.
+
+```python
+xf = x.float()
+mu = xf.mean(dim=-1, keepdim=True)
+print(mu.shape)  # torch.Size([2, 3, 1])
+```
+
+With `keepdim=True` the last dimension didn't vanish; it shrank to size **1**. The result still has three dimensions, lined up with the original: `mu[b, t, 0]` is the mean of token `(b, t)`. Flip the keepdim toggle in the explorer above to see this: each output cell stays in the row it came from.
+
+Because `mu` is `[2, 3, 1]` and `xf` is `[2, 3, 4]`, PyTorch can stretch `mu` along that size-1 slot and subtract each token's mean from all 4 of its numbers:
+
+```python
+centered = xf - mu               # [2, 3, 4] - [2, 3, 1] -> [2, 3, 4]
+print(centered[0])
+# tensor([[ 0.7500, -1.2500,  1.7500, -1.2500],
+#         [-0.5000,  3.5000, -3.5000,  0.5000],
+#         [-0.2500, -2.2500, -0.2500,  2.7500]])
+print(centered.mean(dim=-1))     # every token vector now has mean 0
+# tensor([[0., 0., 0.],
+#         [0., 0., 0.]])
+```
+
+Without `keepdim`, the mean has shape `[2, 3]`, and PyTorch lines shapes up **from the right** (more on that in the broadcasting section). It tries to match the `3` of the mean against the `4` of the embedding and gives up:
+
+```python
+try:
+    xf - xf.mean(dim=-1)         # [2, 3, 4] - [2, 3]
+except RuntimeError as e:
+    print(e)
+# The size of tensor a (4) must match the size of tensor b (3) at non-singleton dimension 2
+```
+
+<Callout type="warning">
+The error is the *lucky* case. If the shapes had happened to line up (say, a `[4, 4]` tensor), the subtraction would silently run with the means going to the wrong places. When you reduce something you plan to combine with the original, reach for `keepdim=True` by habit.
+</Callout>
+
+## Softmax along a dimension
+
+Softmax isn't a reduction: the output has the same shape as the input. But it still works **along** one dimension. It walks along `dim`, exponentiates the numbers it finds, and divides each by their total. So along that dim, the results are positive and **sum to 1**.
+
+In attention, `scores[i, j]` says how much query token `i` cares about token `j`. Each **row** belongs to one query, so each row should become a set of weights summing to 1. That's `dim=-1`:
+
+```python
+scores = torch.tensor([[2.0, 1.0, 0.1, 0.5],
+                       [0.3, 2.5, 0.2, 1.0],
+                       [1.2, 0.4, 3.0, 0.0]])
+
+weights = torch.softmax(scores, dim=-1)
+print(weights.round(decimals=2))
+# tensor([[0.5700, 0.2100, 0.0900, 0.1300],
+#         [0.0800, 0.7000, 0.0700, 0.1600],
+#         [0.1300, 0.0600, 0.7800, 0.0400]])
+print(weights.sum(dim=-1))   # each row sums to 1
+# tensor([1., 1., 1.])
+```
+
+Use `dim=0` by mistake and nothing crashes. You just get columns that sum to 1, which means nothing for attention:
+
+```python
+wrong = torch.softmax(scores, dim=0)
+print(wrong.sum(dim=-1))     # rows: not 1
+# tensor([1.1351, 1.4161, 1.4488])
+print(wrong.sum(dim=0))      # columns: 1
+# tensor([1.0000, 1.0000, 1.0000, 1.0000])
+```
+
+Flip between the two and compare the row sums (right) with the column sums (bottom):
+
+<SoftmaxDimDemo />
+
+The same `dim=-1` turns a model's logits into next-token probabilities. Logits have shape `[batch, tokens, vocab_size]`; softmax over the last dim gives, for every text and every position, a probability distribution over the vocabulary.
+
+## Layer norm, step by step
+
+Layer norm (Chapter 4) is where all of this comes together. Here it is on a single text of 3 tokens, each with `emb_dim = 4`, spelled out one reduction at a time:
+
+```python
+h = torch.tensor([[2.0, 4.0, 6.0, 8.0],     # token 0
+                  [1.0, 1.0, 1.0, 5.0],     # token 1
+                  [10.0, 0.0, 5.0, 5.0]])   # token 2
+
+mu = h.mean(dim=-1, keepdim=True)            # one mean per token: [3, 1]
+print(mu)
+# tensor([[5.],
+#         [2.],
+#         [5.]])
+
+centered = h - mu                            # [3, 4] - [3, 1]
+print(centered)
+# tensor([[-3., -1.,  1.,  3.],
+#         [-1., -1., -1.,  3.],
+#         [ 5., -5.,  0.,  0.]])
+
+var = centered.pow(2).mean(dim=-1, keepdim=True)   # one variance per token: [3, 1]
+print(var)
+# tensor([[ 5.0000],
+#         [ 3.0000],
+#         [12.5000]])
+
+normed = centered / torch.sqrt(var + 1e-5)   # [3, 4] / [3, 1]
+print(normed.round(decimals=2))
+# tensor([[-1.3400, -0.4500,  0.4500,  1.3400],
+#         [-0.5800, -0.5800, -0.5800,  1.7300],
+#         [ 1.4100, -1.4100,  0.0000,  0.0000]])
+```
+
+Every reduction was over `dim=-1`, so every token got its **own** mean and its **own** variance. Token 2 is spread out (variance 12.5) and token 1 is bunched up (variance 3), but after normalising, each row has mean 0 and variance 1:
+
+```python
+print(normed.mean(dim=-1).round(decimals=4))                  # tensor([0., 0., 0.])
+print(normed.var(dim=-1, unbiased=False).round(decimals=4))   # tensor([1., 1., 1.])
+```
+
+Step through it, and tap a row to follow a different token:
+
+<LayerNormStepper />
+
+The result matches PyTorch's built-in version, and the recipe works unchanged on a full `[batch, tokens, emb]` tensor because `dim=-1` always means "within one token vector":
+
+```python
+ln = torch.nn.LayerNorm(4, elementwise_affine=False)  # no learnable scale/shift
+print(torch.allclose(ln(h), normed, atol=1e-6))       # True
+```
+
+What if you normalised over `dim=0` instead? Then each **column** (one embedding slot, across all tokens) would get mean 0. A token's result would depend on which other tokens happen to be in the sequence, and the token vectors themselves would no longer have mean 0:
+
+```python
+wrong = (h - h.mean(dim=0, keepdim=True)) / torch.sqrt(h.var(dim=0, keepdim=True, unbiased=False) + 1e-5)
+print(wrong.mean(dim=-1).round(decimals=2))   # token vectors are NOT centred
+# tensor([ 0.7800, -0.8300,  0.0500])
+```
+
+<Callout type="note">
+Normalising over the batch dimension is a real technique, called **batch norm**, and it's common in image models. Transformers avoid it: it makes one example's output depend on the rest of the batch, and it behaves differently at training and inference time. Layer norm treats each token as a self-contained vector.
+</Callout>
+
+## Broadcasting
+
+We've already leaned on broadcasting twice: `xf - mu` and `centered / torch.sqrt(var)`. Here are the rules, all three of them.
+
+To combine two tensors element by element (`+`, `-`, `*`, `/`, …):
+
+1. **Line the shapes up from the right.**
+2. In each column, the sizes must be **equal**, or one of them must be **1**. A size-1 dim is stretched (copied) to match the other.
+3. If one shape is shorter, its **missing** dims on the left count as size 1, so they're stretched too.
+
+If any column has two different sizes, neither of them 1, you get an error.
+
+```text
+[2, 3, 4]        [2, 3, 4]        [3, 4]
+   [3, 4]        [2, 3, 1]           [3]
+---------        ---------        ------
+[2, 3, 4] ✓      [2, 3, 4] ✓      4 vs 3 ✗
+```
+
+Nothing is actually copied in memory. PyTorch just reads the same numbers again, which is why broadcasting is fast. But thinking of it as copying is exactly right for predicting the result. Pick a pair and step through:
+
+<BroadcastVisualizer />
+
+**A bias vector added to every row** (`[3, 4] + [4]`). The `[4]` becomes `[1, 4]`, then gets copied down 3 rows. This is what happens inside every `nn.Linear` with a bias.
+
+```python
+a = torch.zeros(3, 4)
+b = torch.tensor([10., 20., 30., 40.])
+print(a + b)
+# tensor([[10., 20., 30., 40.],
+#         [10., 20., 30., 40.],
+#         [10., 20., 30., 40.]])
+```
+
+**Position embeddings added to every text in the batch** (`[2, 3, 4] + [3, 4]`). In Chapter 4's GPT model, `self.tok_emb(token_ids)` has shape `[batch, tokens, emb]`, but `self.pos_emb(positions)` has shape `[tokens, emb]`: one vector per *position*, with no batch dim. Broadcasting gives it a batch dim of size 1 and copies it to every text, so position 0 gets the same vector in every sequence:
+
+```python
+tok = torch.zeros(2, 3, 4)                    # token embeddings: [batch, tokens, emb]
+pos = torch.tensor([[1., 1., 1., 1.],         # position 0
+                    [2., 2., 2., 2.],         # position 1
+                    [3., 3., 3., 3.]])        # position 2   -> [tokens, emb]
+out = tok + pos
+print(out.shape)                   # torch.Size([2, 3, 4])
+print(torch.equal(out[0], out[1])) # True: both texts got the same position vectors
+```
+
+**One number per token, stretched along the vector** (`[2, 3, 4] - [2, 3, 1]`). That's the keepdim pattern from layer norm. You can also stretch *both* tensors at once:
+
+```python
+col = torch.tensor([[1.], [2.], [3.]])        # [3, 1]
+row = torch.tensor([[10., 20., 30., 40.]])    # [1, 4]
+print(col + row)                              # [3, 4]: an "addition table"
+# tensor([[11., 21., 31., 41.],
+#         [12., 22., 32., 42.],
+#         [13., 23., 33., 43.]])
+```
+
+**And a failure** (`[3, 4] + [3]`). You might mean "one number per row", but aligning from the right pairs the `3` with the `4`:
+
+```python
+try:
+    a + torch.tensor([1., 2., 3.])
+except RuntimeError as e:
+    print(e)
+# The size of tensor a (4) must match the size of tensor b (3) at non-singleton dimension 1
+```
+
+The fix is to give it an explicit size-1 slot, making it `[3, 1]`: `a + torch.tensor([1., 2., 3.]).unsqueeze(-1)`, or `[:, None]`. If you want to check a pair of shapes without building tensors, ask PyTorch directly:
+
+```python
+print(torch.broadcast_shapes((2, 3, 4), (3, 4)))     # torch.Size([2, 3, 4])
+print(torch.broadcast_shapes((2, 3, 4), (2, 3, 1)))  # torch.Size([2, 3, 4])
+```
+
+## argmax: picking tokens
+
+`argmax(dim=d)` walks along `d` like `max` does, but returns only **where** the largest value was: an index. It's a reduction, so dim `d` disappears.
+
+The model's output logits have shape `[batch, tokens, vocab_size]`. Along the last dim, each position holds one score per vocabulary token, so `argmax(dim=-1)` picks the highest-scoring token ID at every position. Here's a pretend vocabulary of 5 tokens:
+
+```python
+logits = torch.tensor([[[0.1, 2.0, -1.0, 0.5, 0.3],
+                        [1.5, 0.2,  0.1, 0.0, 2.2],
+                        [0.0, 0.0,  3.1, 0.4, 0.2]],
+                       [[2.5, 0.1,  0.3, 0.9, 0.0],
+                        [0.2, 0.2,  0.2, 1.7, 0.1],
+                        [0.3, 4.0,  0.0, 0.0, 0.1]]])
+print(logits.shape)            # torch.Size([2, 3, 5])
+
+ids = logits.argmax(dim=-1)
+print(ids)
+# tensor([[1, 4, 2],
+#         [0, 3, 1]])
+print(ids.shape)               # torch.Size([2, 3]): one token ID per position
+```
+
+When generating text, we only care about the **last** position of each text. Chapter 4's generation loop takes that slice and keeps the dim so the new IDs can be concatenated onto the sequence:
+
+```python
+last = logits[:, -1, :]                        # [2, 5]: last position of each text
+next_ids = last.argmax(dim=-1, keepdim=True)   # [2, 1]
+print(next_ids)
+# tensor([[2],
+#         [1]])
+
+probs = torch.softmax(last, dim=-1)            # softmax keeps the order,
+print(torch.equal(probs.argmax(dim=-1, keepdim=True), next_ids))  # True: same pick
+```
+
+`logits.argmax(dim=0)` would run without complaint too. It would compare the two *texts* against each other, slot by slot: a perfectly valid, perfectly meaningless `[3, 5]` tensor. PyTorch can check shapes for you, but only you can check that `dim` points at the axis you mean.
+
+<Callout type="key">
+Before any `dim=` call, say the dimension's **meaning** out loud: "softmax over the keys", "mean over the embedding", "argmax over the vocabulary". If you can name it, you've picked the right number.
+</Callout>
+
+<Quiz questions={quiz} />

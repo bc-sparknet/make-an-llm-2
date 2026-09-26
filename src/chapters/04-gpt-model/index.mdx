@@ -1,4 +1,4 @@
-import { Callout, Quiz } from '../../components';
+import { Callout, FoundationLink, Quiz } from '../../components';
 import { LayerNormDemo } from './LayerNormDemo';
 import { GeluPlot } from './GeluPlot';
 import { ShortcutDemo } from './ShortcutDemo';
@@ -110,6 +110,8 @@ class LayerNorm(nn.Module):
 ```
 
 `dim=-1` means "the last dimension", which is the embedding dimension. `keepdim=True` keeps the shape broadcastable, so subtracting the mean works row by row.
+
+<FoundationLink to="dimensions">Watch a mean over dim=-1, with and without keepdim.</FoundationLink>
 
 <Callout type="note">
 `unbiased=False` divides by *n* rather than *n − 1*. With 768 values the difference is negligible, but it matches what the original GPT-2 did, which matters once we load its weights in Chapter 5. PyTorch also ships `nn.LayerNorm`, which behaves the same way; writing it yourself shows there's no magic inside.

@@ -1,0 +1,585 @@
+/* Shared styles for the Foundations A3 widgets. Colours only via tokens. */
+
+/* Dimension roles, used consistently across widgets:
+   rows (n) = accent, inner (k) = purple, cols (m) = blue, batch = green. */
+.rows { color: var(--accent-strong); font-weight: 700; }
+.inner { color: var(--purple); font-weight: 700; }
+.cols { color: var(--blue); font-weight: 700; }
+.batch { color: var(--green); font-weight: 700; }
+
+.cancel {
+  color: var(--purple);
+  font-weight: 700;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.hint {
+  margin: 0 0 var(--space-2);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.codeLine {
+  display: block;
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.shapeEq {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px 8px;
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.op {
+  color: var(--text-muted);
+}
+
+/* ---------------- Matmul stepper ---------------- */
+.mmGrid {
+  --c: 42px;
+  display: grid;
+  grid-template-columns: repeat(2, var(--c)) 14px repeat(3, var(--c));
+  grid-template-rows: repeat(2, var(--c)) 14px repeat(3, var(--c));
+  gap: 4px;
+  justify-content: center;
+  margin: 0 auto var(--space-3);
+}
+
+.corner {
+  grid-column: 1 / 3;
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 2px 4px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: var(--text-muted);
+}
+
+.corner b {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.cornerA {
+  align-self: flex-start;
+}
+
+.mcell {
+  display: grid;
+  place-items: center;
+  width: var(--c);
+  height: var(--c);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  transition: background 0.25s ease, border-color 0.25s ease, opacity 0.25s ease;
+}
+
+button.mcell {
+  cursor: pointer;
+}
+
+.mcell[data-role='a'] {
+  border-color: var(--accent);
+}
+
+.mcell[data-role='b'] {
+  border-color: var(--blue);
+}
+
+.mcell[data-state='rowHi'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.mcell[data-state='colHi'] {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.mcell[data-state='active'] {
+  border: 2px solid var(--purple);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.mcell[data-state='done'] {
+  background: var(--surface-2);
+}
+
+.mcell[data-state='empty'] {
+  color: var(--text-muted);
+  border-style: dashed;
+}
+
+.mcell[data-state='faded'] {
+  opacity: 0.45;
+}
+
+.calc {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.calcTitle {
+  display: block;
+  font-weight: 600;
+}
+
+.calcMath {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+}
+
+.pa {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.pb {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+/* ---------------- Shape checker ---------------- */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-3);
+}
+
+.preset {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.preset[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  font-weight: 600;
+  background: var(--accent-soft);
+}
+
+.scTable {
+  display: grid;
+  grid-template-columns: 58px repeat(4, minmax(0, 52px));
+  gap: 5px;
+  justify-content: center;
+  margin: 0 auto var(--space-3);
+}
+
+.scLabel {
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.scRole {
+  text-align: center;
+  font-size: 0.66rem;
+  line-height: 1.1;
+  color: var(--text-muted);
+  align-self: end;
+}
+
+.chip {
+  display: grid;
+  place-items: center;
+  height: 36px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.chip[data-kind='batch'] {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.chip[data-kind='rows'] {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.chip[data-kind='inner'] {
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+.chip[data-kind='cols'] {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.chip[data-kind='bad'] {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.chip[data-kind='none'] {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.chip[data-kind='gone'] {
+  border: 1px dashed var(--purple);
+  color: var(--purple);
+  font-weight: 400;
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.divider {
+  grid-column: 1 / -1;
+  height: 2px;
+  background: var(--border);
+}
+
+.checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.checks li {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.ok {
+  color: var(--success);
+  font-weight: 800;
+}
+
+.bad {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.verdict {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.verdict[data-ok='true'] {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.verdict[data-ok='false'] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ---------------- Small matrices (batched demo, reshape, heads) ---------------- */
+.mat {
+  display: inline-grid;
+  gap: 3px;
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  transition: background 0.25s ease, border-color 0.25s ease, opacity 0.25s ease;
+}
+
+button.cell {
+  min-width: 36px;
+  height: 36px;
+  cursor: pointer;
+}
+
+.cell[data-state='rowHi'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.cell[data-state='colHi'] {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.cell[data-state='active'] {
+  border: 2px solid var(--purple);
+  background: var(--surface-2);
+  font-weight: 800;
+}
+
+.cell[data-state='dim'] {
+  opacity: 0.35;
+}
+
+.batchRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: var(--space-2);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  transition: opacity 0.25s ease, border-color 0.25s ease;
+}
+
+.batchRow[data-active='true'] {
+  border-style: solid;
+  border-color: var(--green);
+}
+
+.batchRow[data-active='false'] {
+  opacity: 0.4;
+}
+
+.batchLabel {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.eqRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.eqRow .op {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+}
+
+.matLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.matName {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ---------------- Reshape visualizer ---------------- */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 2px;
+  margin-bottom: var(--space-2);
+}
+
+.stripCell {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--on-accent);
+}
+
+.stripLabel {
+  margin: var(--space-2) 0 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.valCell {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--on-accent);
+}
+
+.stage {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 150px;
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.slice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px;
+  border: 1px dashed var(--text-muted);
+  border-radius: var(--radius);
+}
+
+.sliceLabel {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.flag {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.flag[data-kind='ok'] {
+  background: var(--success-soft);
+  color: var(--text);
+}
+
+.flag[data-kind='warn'] {
+  background: var(--danger-soft);
+  color: var(--text);
+}
+
+/* ---------------- Head split stepper ---------------- */
+.hcell {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  border: 2px solid var(--hc);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--hc) 18%, var(--surface));
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 var(--space-2);
+  font-size: 0.78rem;
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 5px;
+  border: 2px solid var(--hc);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--hc) 18%, var(--surface));
+  vertical-align: -1px;
+}
+
+.shapeLine {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.dimNames {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 10px;
+  margin: 0 0 var(--space-2);
+  font-size: 0.74rem;
+}
+
+.dBatch { color: var(--text-muted); font-weight: 700; }
+.dTokens { color: var(--green); font-weight: 700; }
+.dHeads { color: var(--purple); font-weight: 700; }
+.dFeat { color: var(--text); font-weight: 700; }
+
+.explain {
+  min-height: 4.5em;
+  margin: 0 0 var(--space-3);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}

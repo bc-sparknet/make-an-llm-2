@@ -14,6 +14,13 @@ This is an independent study companion, not affiliated with the author or publis
 6. Fine-tuning for Classification: a spam classifier
 7. Fine-tuning to Follow Instructions: prompt formats, collation, LLM-as-judge evaluation
 
+Optional **Foundations** chapters cover the PyTorch background:
+
+- A1. Tensors and Shapes
+- A2. Working Along a Dimension: `dim=`, `keepdim`, softmax, layer norm, broadcasting
+- A3. Matrix Multiplication and Reshaping: batched `@`, `view`/`transpose`, splitting attention heads
+- A4. Autograd and the Training Loop
+
 ## Running locally
 
 ```bash
