@@ -1,4 +1,4 @@
-import { Callout, Quiz } from '../../components';
+import { Callout, FoundationLink, Quiz } from '../../components';
 import { TokenizerPlayground } from './TokenizerPlayground';
 import { BpeStepper } from './BpeStepper';
 import { SlidingWindow } from './SlidingWindow';
@@ -164,6 +164,8 @@ token_vectors = token_embedding(inputs)
 print(token_vectors.shape)  # torch.Size([8, 256, 256]): batch × tokens × emb_dim
 ```
 
+<FoundationLink to="tensors">Not sure how to picture a 3-D shape like this?</FoundationLink>
+
 These weights start random. During training they're adjusted so that tokens used in similar ways end up with similar vectors.
 
 ## Step 6: Adding position information
@@ -182,6 +184,8 @@ print(input_vectors.shape)  # torch.Size([8, 256, 256])
 ```
 
 PyTorch **broadcasts** the `[256, 256]` position embeddings across all 8 sequences in the batch. Explore the lookups below:
+
+<FoundationLink to="dimensions">How does adding a [256, 256] tensor to an [8, 256, 256] one work?</FoundationLink>
 
 <EmbeddingLookup />
 

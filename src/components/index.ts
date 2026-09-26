@@ -3,6 +3,7 @@
  *   import { Figure, Quiz, Callout } from '../../components';
  */
 export { Callout } from './content/Callout';
+export { FoundationLink } from './content/FoundationLink';
 export { CodeBlock } from './content/CodeBlock';
 export { Figure } from './content/Figure';
 export { Quiz, type QuizQuestion } from './content/Quiz';

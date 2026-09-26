@@ -1,4 +1,4 @@
-import { Callout, Quiz } from '../../components';
+import { Callout, FoundationLink, Quiz } from '../../components';
 import { CrossEntropyStepper } from './CrossEntropyStepper';
 import { LossExplorer } from './LossExplorer';
 import { TrainingLoopAnimation } from './TrainingLoopAnimation';
@@ -127,6 +127,8 @@ loss = F.cross_entropy(logits_flat, targets_flat)
 print(loss)   # same value as the manual version
 ```
 
+<FoundationLink to="matmul">What exactly does flatten(0, 1) do to the shape?</FoundationLink>
+
 ### Perplexity
 
 Loss values like 10.8 or 3.2 are hard to picture. **Perplexity** is a friendlier way to report the same thing:
@@ -203,6 +205,8 @@ with torch.no_grad():
 Both are close to the "knows nothing" value of 10.8, as expected.
 
 ## The training loop
+
+<FoundationLink to="autograd">New to backward(), optimizers and zero_grad()?</FoundationLink>
 
 Training repeats the same four moves over and over, once per batch:
 

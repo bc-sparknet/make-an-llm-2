@@ -1,4 +1,4 @@
-import { Callout, Quiz } from '../../components';
+import { Callout, FoundationLink, Quiz } from '../../components';
 import { AttentionExplorer } from './AttentionExplorer';
 import { ScaledAttentionStepper } from './ScaledAttentionStepper';
 import { CausalMaskDemo } from './CausalMaskDemo';
@@ -95,6 +95,8 @@ contexts = weights @ inputs                # (6, 3): one context vector per toke
 
 `dim=-1` normalises along the last dimension, so each **row** sums to 1. Row *i* holds the attention weights for query *i*.
 
+<FoundationLink to="dimensions">What does softmax "along dim=-1" actually do?</FoundationLink>
+
 <Callout type="note">
 This version has no parameters to train. The weights depend only on the embeddings, so the model has no way to learn *which* relationships matter. That's what we add next.
 </Callout>
@@ -127,6 +129,8 @@ V = inputs @ W_v     # (6, 2)
 
 scores = Q @ K.T     # (6, 6)
 ```
+
+<FoundationLink to="matmul">Why does Q @ K.T give a 6 × 6 matrix?</FoundationLink>
 
 Notice that `d_out` can differ from `d_in`. In GPT models they're usually equal, but a small `d_out` keeps our example easy to follow.
 
@@ -328,6 +332,8 @@ class MultiHeadAttention(nn.Module):
 ```
 
 `.contiguous()` is needed because `transpose` only changes how PyTorch walks through memory; `view` requires the data to be laid out in order.
+
+<FoundationLink to="matmul">See the head split step by step, with view, transpose and batched @.</FoundationLink>
 
 ```python
 torch.manual_seed(123)

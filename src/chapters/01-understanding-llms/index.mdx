@@ -1,4 +1,4 @@
-import { Callout, Quiz } from '../../components';
+import { Callout, FoundationLink, Quiz } from '../../components';
 import { PipelineAnimation } from './PipelineAnimation';
 import { NextWordGame } from './NextWordGame';
 import { quiz } from './quiz';
@@ -61,6 +61,10 @@ Most machine learning needs labeled data: photos tagged "cat" or "dog", emails m
 Next-token prediction sidesteps this. Every sentence already contains its own answers: the label for "The cat sat on the" is simply the next word in the text, "mat". This is called **self-supervised learning**, and it's why LLMs can train on practically the whole internet.
 
 ## The plan for this course
+
+If PyTorch or tensors are new to you, there's also an optional **Foundations** track (A1 to A4) covering tensors, shapes, matrix multiplication and training loops. You can read it first or dip in whenever a code example stops making sense.
+
+<FoundationLink to="tensors">New to PyTorch?</FoundationLink>
 
 Here's the roadmap, and roughly what you'll build in each chapter:
 
